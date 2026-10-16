@@ -1,0 +1,245 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: StudySnap - AI study assistant (7 streaming text Lambdas, 1 image Lambda, S3 site)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 60
+    MemorySize: 256
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # IAM role shared by all functions
+  # ---------------------------------------------------------------------------
+  AppBedrockRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: StudySnapAppBedrockRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockInvokeAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub arn:aws:bedrock:ap-southeast-1:${AWS::AccountId}:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:ap-southeast-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0
+
+  # ---------------------------------------------------------------------------
+  # API Gateway (image widget only)
+  # ---------------------------------------------------------------------------
+  AppApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
+
+  # ---------------------------------------------------------------------------
+  # Streaming text Lambdas (Lambda Web Adapter + Function URL)
+  # ---------------------------------------------------------------------------
+  EstimatedStudyTimeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/estimated_study_time/
+      Handler: run.sh
+      Role: !GetAtt AppBedrockRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: "8080"
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  BulletPointSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/bullet_point_summary/
+      Handler: run.sh
+      Role: !GetAtt AppBedrockRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: "8080"
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  KeyTermsGlossaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/key_terms_glossary/
+      Handler: run.sh
+      Role: !GetAtt AppBedrockRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: "8080"
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  RealWorldExamplesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/real_world_examples/
+      Handler: run.sh
+      Role: !GetAtt AppBedrockRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: "8080"
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  DifficultyLevelTagFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/difficulty_level_tag/
+      Handler: run.sh
+      Role: !GetAtt AppBedrockRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: "8080"
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  FlashcardsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/flashcards/
+      Handler: run.sh
+      Role: !GetAtt AppBedrockRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: "8080"
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  InteractiveQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/interactive_quiz/
+      Handler: run.sh
+      Role: !GetAtt AppBedrockRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: "8080"
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+
+  # ---------------------------------------------------------------------------
+  # Image Lambda (standard handler, behind API Gateway)
+  # ---------------------------------------------------------------------------
+  TopicVisualFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/topic_visual/
+      Handler: app.handler
+      Role: !GetAtt AppBedrockRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Events:
+        Generate:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /
+            Method: post
+
+  # ---------------------------------------------------------------------------
+  # S3 static website hosting
+  # ---------------------------------------------------------------------------
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+
+Outputs:
+  DiagramApiUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+  EstimatedStudyTimeUrl:
+    Value: !GetAtt EstimatedStudyTimeFunctionUrl.FunctionUrl
+  BulletPointSummaryUrl:
+    Value: !GetAtt BulletPointSummaryFunctionUrl.FunctionUrl
+  KeyTermsGlossaryUrl:
+    Value: !GetAtt KeyTermsGlossaryFunctionUrl.FunctionUrl
+  RealWorldExamplesUrl:
+    Value: !GetAtt RealWorldExamplesFunctionUrl.FunctionUrl
+  DifficultyLevelTagUrl:
+    Value: !GetAtt DifficultyLevelTagFunctionUrl.FunctionUrl
+  FlashcardsUrl:
+    Value: !GetAtt FlashcardsFunctionUrl.FunctionUrl
+  InteractiveQuizUrl:
+    Value: !GetAtt InteractiveQuizFunctionUrl.FunctionUrl
+  WebsiteUrl:
+    Value: !GetAtt FrontendBucket.WebsiteURL
+  BucketName:
+    Value: !Ref FrontendBucket

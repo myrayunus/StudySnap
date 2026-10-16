@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StudySnap — AI Study Assistant</title>
+<style>
+  :root {
+    --bg: #fff7ef;
+    --bg-grad-1: #fff1f7;
+    --bg-grad-2: #eef6ff;
+    --card: #ffffff;
+    --ink: #2b2240;
+    --muted: #6b6480;
+    --accent: #ff6fb5;
+    --accent-2: #7c5cff;
+    --accent-3: #30c7b5;
+    --border: #f0e6f5;
+    --shadow: 0 10px 30px rgba(124, 92, 255, 0.12);
+    --radius: 18px;
+  }
+
+  /* Theme that kicks in once notes are uploaded (set via body[data-theme]) */
+  body[data-theme="science"] {
+    --accent: #30c7b5; --accent-2: #2b8cff; --accent-3: #9b7bff;
+    --bg-grad-1: #e9fbff; --bg-grad-2: #eef3ff;
+  }
+  body[data-theme="humanities"] {
+    --accent: #ff914d; --accent-2: #ff5d8f; --accent-3: #ffb34d;
+    --bg-grad-1: #fff3e6; --bg-grad-2: #ffe9f0;
+  }
+  body[data-theme="math"] {
+    --accent: #5b7cff; --accent-2: #7c5cff; --accent-3: #30a0ff;
+    --bg-grad-1: #eef1ff; --bg-grad-2: #e9f6ff;
+  }
+  body[data-theme="business"] {
+    --accent: #2bb673; --accent-2: #0ea5a0; --accent-3: #6ac46a;
+    --bg-grad-1: #eafff4; --bg-grad-2: #eef9ff;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, var(--bg-grad-1), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, var(--bg-grad-2), transparent 55%),
+      var(--bg);
+    min-height: 100vh;
+    transition: background 0.8s ease;
+  }
+
+  header.hero {
+    text-align: center;
+    padding: 36px 20px 10px;
+  }
+  header.hero h1 {
+    margin: 0;
+    font-size: clamp(28px, 5vw, 44px);
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -0.5px;
+  }
+  header.hero p { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+
+  .theme-pill {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--accent) 16%, white);
+    color: var(--accent-2);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, white);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px 18px 80px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin: 18px 0;
+  }
+
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+
+  .static-text {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  /* Upload zone */
+  .dropzone {
+    border: 2px dashed color-mix(in srgb, var(--accent-2) 40%, #d9d0ea);
+    border-radius: 16px;
+    padding: 34px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.25s;
+    background: color-mix(in srgb, var(--accent) 6%, white);
+  }
+  .dropzone.dragover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, white);
+    transform: translateY(-2px);
+  }
+  .dropzone .big { font-size: 34px; }
+  .dropzone .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .dropzone input { display: none; }
+  .file-chip {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent-3) 14%, white);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  textarea.notes {
+    width: 100%;
+    margin-top: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px;
+    font-family: inherit;
+    font-size: 14px;
+    min-height: 90px;
+    resize: vertical;
+  }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 6px; }
+  button.btn {
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 13px 22px;
+    border-radius: 14px;
+    color: white;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--accent-2) 30%, transparent);
+    transition: 0.2s;
+  }
+  button.btn:hover { transform: translateY(-2px); }
+  button.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+  button.btn.ghost {
+    background: white;
+    color: var(--accent-2);
+    border: 1.5px solid color-mix(in srgb, var(--accent-2) 35%, white);
+    box-shadow: none;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-dot {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .output {
+    margin-top: 12px;
+    height: 340px;
+    overflow-y: auto;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 4%, #fbfaff);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    line-height: 1.6;
+    font-size: 14.5px;
+  }
+  .output.autoheight { height: auto; min-height: 120px; max-height: none; }
+
+  /* thin custom scrollbar */
+  .output::-webkit-scrollbar { width: 7px; }
+  .output::-webkit-scrollbar-track { background: transparent; }
+  .output::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent-2) 40%, #d8cfee);
+    border-radius: 999px;
+  }
+  .output { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent-2) 40%, #d8cfee) transparent; }
+
+  .md-line {
+    display: block;
+    opacity: 0;
+    animation: fadein 0.35s ease forwards;
+  }
+  @keyframes fadein { to { opacity: 1; } }
+
+  .md-line.h1 { font-size: 20px; font-weight: 800; margin: 8px 0 4px; }
+  .md-line.h2 { font-size: 17px; font-weight: 700; margin: 8px 0 4px; }
+  .md-line.h3 { font-size: 15px; font-weight: 700; margin: 6px 0 3px; color: var(--accent-2); }
+  .md-line.li { padding-left: 18px; position: relative; }
+  .md-line.li::before { content: "•"; position: absolute; left: 4px; color: var(--accent); }
+  .md-line.oli { padding-left: 22px; }
+  .md-line.hr { border-top: 1px solid var(--border); height: 0; margin: 10px 0; }
+  .md-line code {
+    background: color-mix(in srgb, var(--accent-2) 12%, white);
+    padding: 1px 6px; border-radius: 6px; font-size: 0.92em;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    animation: blink 1s steps(2) infinite;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2.5px solid color-mix(in srgb, var(--accent-2) 25%, #e7e0f5);
+    border-top-color: var(--accent-2);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .err { color: #d6336c; font-weight: 600; }
+
+  .placeholder { color: var(--muted); font-style: italic; }
+
+  /* image panel */
+  .img-wrap { margin-top: 12px; text-align: center; }
+  .img-wrap img { max-width: 100%; border-radius: 14px; box-shadow: var(--shadow); }
+
+  /* chat */
+  .chat-window {
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    background: color-mix(in srgb, var(--accent) 4%, #fbfaff);
+    max-height: 460px;
+    overflow-y: auto;
+  }
+  .bubble {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    margin: 8px 0;
+    line-height: 1.55;
+    font-size: 14.5px;
+    white-space: normal;
+  }
+  .bubble.bot { background: white; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble.user {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: white; margin-left: auto; border-bottom-right-radius: 4px;
+  }
+  .chat-input-row { display: flex; gap: 10px; margin-top: 12px; }
+  .chat-input-row input {
+    flex: 1;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .history-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+  }
+  .history-item {
+    font-size: 12.5px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-3) 12%, white);
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .history-item button { border: none; background: none; cursor: pointer; color: var(--muted); margin-left: 6px; }
+  .footer-note { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 30px; }
+</style>
+</head>
+<body data-theme="">
+<header class="hero">
+  <h1>📚 StudySnap</h1>
+  <p>Your AI study assistant — summaries, flashcards, quizzes and more from your lecture notes.</p>
+  <div class="theme-pill" id="themePill">Bright theme · upload notes to adapt</div>
+</header>
+
+<div class="container">
+
+  <!-- Widget 1: Lecture Notes (static) -->
+  <section class="card">
+    <h2>📚 Welcome to your Study Assistant!</h2>
+    <div class="static-text">Upload your PDF lecture notes below and instantly get:
+- ✅ A clear 5–7 bullet point summary
+- 🃏 5 flashcards in Q&A format
+- 📝 5 multiple-choice quiz questions
+
+Just upload your file and all three outputs will generate automatically!</div>
+  </section>
+
+  <!-- Widget 2: Document upload -->
+  <section class="card">
+    <h2>📄 Lecture Notes</h2>
+    <p class="subtitle">Upload your lecture notes PDF file here.</p>
+    <label class="dropzone" id="dropzone">
+      <div class="big">⬆️</div>
+      <div><strong>Drag &amp; drop</strong> your PDF here, or click to browse</div>
+      <div class="hint">Accepted: PDF (you may also paste text below)</div>
+      <input type="file" id="fileInput" accept="application/pdf" />
+    </label>
+    <div class="file-chip" id="fileChip"></div>
+    <textarea class="notes" id="notesText" placeholder="Optional: paste lecture notes text here if you don't have a PDF..."></textarea>
+
+    <div class="actions">
+      <button class="btn" id="runAllBtn">✨ Run All</button>
+      <button class="btn ghost" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="history-bar" id="historyBar"></div>
+  </section>
+
+  <!-- Widgets 3–7 (two-column grid of text outputs) -->
+  <div class="grid">
+    <!-- Widget 3: Estimated Study Time -->
+    <section class="card" data-widget="estimated_study_time">
+      <div class="panel-head">
+        <h2>⏱️ Estimated Study Time</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 4: Bullet Point Summary -->
+    <section class="card" data-widget="bullet_point_summary">
+      <div class="panel-head">
+        <h2>📝 Bullet Point Summary</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 5: Key Terms Glossary -->
+    <section class="card" data-widget="key_terms_glossary">
+      <div class="panel-head">
+        <h2>📌 Key Terms Glossary</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 6: Real World Examples -->
+    <section class="card" data-widget="real_world_examples">
+      <div class="panel-head">
+        <h2>💡 Real World Examples</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 7: Difficulty Level Tag -->
+    <section class="card" data-widget="difficulty_level_tag">
+      <div class="panel-head">
+        <h2>🎚️ Difficulty Level Tag</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 8: Flashcards -->
+    <section class="card" data-widget="flashcards">
+      <div class="panel-head">
+        <h2>🃏 Flashcards</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+  </div>
+
+  <!-- Widget 11: Topic Visual (image) -->
+  <section class="card" data-widget="topic_visual">
+    <div class="panel-head">
+      <h2>🎨 Topic Visual</h2>
+      <span class="status-dot" data-status></span>
+    </div>
+    <p class="subtitle">A cute illustration of your topic, generated with Amazon Nova Canvas.</p>
+    <div class="output autoheight" data-output><span class="placeholder">Run to generate a visual for your topic.</span></div>
+  </section>
+
+  <!-- Widget 9: Quiz Instructions (static) -->
+  <section class="card">
+    <h2>🎯 Ready to test yourself?</h2>
+    <div class="static-text">Type <strong>start</strong> in the chat below to begin the quiz. The AI will present one question at a time — answer with A, B, C, or D and it will reveal if you're correct!</div>
+  </section>
+
+  <!-- Widget 10: Interactive Quiz (chat) -->
+  <section class="card" data-widget="interactive_quiz">
+    <div class="panel-head">
+      <h2>🧠 Interactive Quiz</h2>
+      <span class="status-dot" data-status></span>
+    </div>
+    <div class="chat-window" id="chatWindow"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="Type 'start' to begin, or A / B / C / D to answer..." />
+      <button class="btn" id="chatSend">Send</button>
+    </div>
+  </section>
+
+  <div class="footer-note">StudySnap · Powered by Amazon Bedrock (Claude Haiku 4.5 &amp; Nova Canvas)</div>
+</div>
+
+<script>
+/* ============================================================
+   Endpoint URLs — injected by GitHub Actions at deploy time
+   ============================================================ */
+const STREAM_URLS = {
+  estimated_study_time: 'URL_ESTIMATED_STUDY_TIME',
+  bullet_point_summary: 'URL_BULLET_POINT_SUMMARY',
+  key_terms_glossary:   'URL_KEY_TERMS_GLOSSARY',
+  real_world_examples:  'URL_REAL_WORLD_EXAMPLES',
+  difficulty_level_tag: 'URL_DIFFICULTY_LEVEL_TAG',
+  flashcards:           'URL_FLASHCARDS',
+  interactive_quiz:     'URL_INTERACTIVE_QUIZ',
+};
+const DIAGRAM_API = 'DIAGRAM_API_URL';
+
+const STREAM_WIDGETS = [
+  'estimated_study_time',
+  'bullet_point_summary',
+  'key_terms_glossary',
+  'real_world_examples',
+  'difficulty_level_tag',
+  'flashcards',
+];
+
+/* ============================================================
+   State: uploaded file + notes
+   ============================================================ */
+const state = {
+  fileData: null,   // raw base64 (no data: prefix)
+  fileMime: null,
+  fileName: null,
+};
+
+/* ============================================================
+   File upload handling
+   ============================================================ */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileChip = document.getElementById('fileChip');
+const notesText = document.getElementById('notesText');
+
+['dragenter', 'dragover'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('dragover'); })
+);
+['dragleave', 'drop'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('dragover'); })
+);
+dropzone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (f) handleFile(f);
+});
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const result = reader.result || '';
+    const comma = result.indexOf(',');
+    state.fileData = comma >= 0 ? result.slice(comma + 1) : result;
+    state.fileMime = file.type || 'application/pdf';
+    state.fileName = file.name;
+    fileChip.style.display = 'block';
+    fileChip.textContent = '📎 ' + file.name;
+    applyThemeFromName(file.name);
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ============================================================
+   Theme adaptation after upload (based on filename keywords)
+   ============================================================ */
+function applyThemeFromName(name) {
+  const n = (name || '').toLowerCase() + ' ' + (notesText.value || '').toLowerCase();
+  let theme = 'math', label = '🔢 Math / Logic theme';
+  if (/bio|chem|phys|science|anatomy|lab|cell|molecul/.test(n)) { theme = 'science'; label = '🔬 Science theme'; }
+  else if (/history|literat|philos|art|language|social|human/.test(n)) { theme = 'humanities'; label = '📜 Humanities theme'; }
+  else if (/business|econ|market|finance|account|manage/.test(n)) { theme = 'business'; label = '💼 Business theme'; }
+  else if (/math|calcul|algebra|geometr|statis|logic|comput|code|data/.test(n)) { theme = 'math'; label = '🔢 Math / Tech theme'; }
+  else { theme = 'science'; label = '✨ Adapted theme'; }
+  document.body.setAttribute('data-theme', theme);
+  document.getElementById('themePill').textContent = label + ' · adapted to your notes';
+}
+
+/* ============================================================
+   Request body builder
+   ============================================================ */
+function buildBody(extra) {
+  const body = { text: notesText.value || '' };
+  if (state.fileData) {
+    body.file_data = state.fileData;
+    body.file_mime = state.fileMime;
+  }
+  return Object.assign(body, extra || {});
+}
+
+function hasInput() {
+  return !!(state.fileData || (notesText.value && notesText.value.trim()));
+}
+
+/* ============================================================
+   Per-panel status helpers
+   ============================================================ */
+function panel(widget) { return document.querySelector(`[data-widget="${widget}"]`); }
+function outputEl(widget) { return panel(widget).querySelector('[data-output]'); }
+function statusEl(widget) { return panel(widget).querySelector('[data-status]'); }
+
+function setLoading(widget) {
+  statusEl(widget).innerHTML = '<span class="spinner"></span> generating…';
+  outputEl(widget).innerHTML = '';
+}
+function setDone(widget) { statusEl(widget).textContent = '✅ done'; }
+function setError(widget, msg) {
+  statusEl(widget).textContent = '⚠️ error';
+  outputEl(widget).innerHTML = `<span class="err">Failed: ${escapeHtml(msg)}</span>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ============================================================
+   Inline markdown: bold, italic, code
+   ============================================================ */
+function inlineMd(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+  return s;
+}
+
+/* Render a single completed markdown line as an animated span */
+function renderMdLine(container, rawLine) {
+  const line = rawLine.replace(/\s+$/, '');
+  const span = document.createElement('span');
+  span.className = 'md-line';
+
+  if (/^\s*---\s*$/.test(line)) {
+    span.classList.add('hr');
+  } else if (/^###\s+/.test(line)) {
+    span.classList.add('h3'); span.innerHTML = inlineMd(line.replace(/^###\s+/, ''));
+  } else if (/^##\s+/.test(line)) {
+    span.classList.add('h2'); span.innerHTML = inlineMd(line.replace(/^##\s+/, ''));
+  } else if (/^#\s+/.test(line)) {
+    span.classList.add('h1'); span.innerHTML = inlineMd(line.replace(/^#\s+/, ''));
+  } else if (/^\s*[-*]\s+/.test(line)) {
+    span.classList.add('li'); span.innerHTML = inlineMd(line.replace(/^\s*[-*]\s+/, ''));
+  } else if (/^\s*\d+\.\s+/.test(line)) {
+    span.classList.add('oli'); span.innerHTML = inlineMd(line);
+  } else {
+    span.innerHTML = inlineMd(line) || '&nbsp;';
+  }
+  container.appendChild(span);
+}
+
+/* ============================================================
+   Streaming fetch with per-line markdown flush + blinking cursor
+   ============================================================ */
+async function streamToPanel(widget, body) {
+  const url = STREAM_URLS[widget];
+  setLoading(widget);
+  const out = outputEl(widget);
+
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  cursor.textContent = '▋';
+  out.appendChild(cursor);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        renderMdLineBeforeCursor(out, cursor, line);
+      }
+      out.scrollTop = out.scrollHeight;
+    }
+    // flush any trailing partial line
+    if (buffer.length) renderMdLineBeforeCursor(out, cursor, buffer);
+
+    cursor.remove();
+    setDone(widget);
+    saveHistory();
+  } catch (err) {
+    cursor.remove();
+    setError(widget, err.message || String(err));
+  }
+}
+
+function renderMdLineBeforeCursor(container, cursor, rawLine) {
+  const tmp = document.createElement('div');
+  renderMdLine(tmp, rawLine);
+  while (tmp.firstChild) container.insertBefore(tmp.firstChild, cursor);
+}
+
+/* ============================================================
+   Image generation (buffered, via API Gateway)
+   ============================================================ */
+async function generateImage() {
+  const widget = 'topic_visual';
+  setLoading(widget);
+  const out = outputEl(widget);
+  const topic = notesText.value || state.fileName || 'this study topic';
+
+  try {
+    const res = await fetch(DIAGRAM_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const mime = data.mime || 'image/png';
+    out.innerHTML = `<div class="img-wrap"><img alt="Topic visual" src="data:${mime};base64,${data.image_base64}" /></div>`;
+    setDone(widget);
+  } catch (err) {
+    setError(widget, err.message || String(err));
+  }
+}
+
+/* ============================================================
+   Run All
+   ============================================================ */
+const runAllBtn = document.getElementById('runAllBtn');
+runAllBtn.addEventListener('click', () => {
+  if (!hasInput()) {
+    alert('Please upload a PDF or paste some lecture notes first.');
+    return;
+  }
+  applyThemeFromName(state.fileName || 'notes');
+  const body = buildBody();
+  STREAM_WIDGETS.forEach(w => streamToPanel(w, body));   // fire simultaneously
+  generateImage();
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  state.fileData = state.fileMime = state.fileName = null;
+  fileChip.style.display = 'none';
+  notesText.value = '';
+  fileInput.value = '';
+  document.body.setAttribute('data-theme', '');
+  document.getElementById('themePill').textContent = 'Bright theme · upload notes to adapt';
+  STREAM_WIDGETS.concat(['topic_visual']).forEach(w => {
+    outputEl(w).innerHTML = '<span class="placeholder">Upload notes and run to generate.</span>';
+    statusEl(w).textContent = '';
+  });
+});
+
+/* ============================================================
+   Interactive Quiz chat
+   ============================================================ */
+const chatWindow = document.getElementById('chatWindow');
+const chatInput = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+const quizStatus = () => statusEl('interactive_quiz');
+
+let quizHistory = [];   // [{role, content}]
+
+addBotBubble(`👋 Welcome to the Quiz! I'll test your understanding of the lecture notes.
+
+When you're ready, type start and I'll present the first question. Answer with A, B, C, or D — I'll tell you if you're right and keep track of your score!
+
+Good luck! 🍀`);
+
+function addUserBubble(text) {
+  const b = document.createElement('div');
+  b.className = 'bubble user';
+  b.textContent = text;
+  chatWindow.appendChild(b);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+function addBotBubble(text) {
+  const b = document.createElement('div');
+  b.className = 'bubble bot';
+  b.textContent = text;
+  chatWindow.appendChild(b);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+  return b;
+}
+
+async function sendChat() {
+  const msg = chatInput.value.trim();
+  if (!msg) return;
+  if (!hasInput()) {
+    alert('Please upload a PDF or paste lecture notes before starting the quiz.');
+    return;
+  }
+  chatInput.value = '';
+  addUserBubble(msg);
+
+  const bubble = addBotBubble('');
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  cursor.textContent = '▋';
+  bubble.appendChild(cursor);
+
+  quizStatus().innerHTML = '<span class="spinner"></span> thinking…';
+
+  const body = buildBody({
+    history: quizHistory.slice(),
+    message: msg,
+    topic: notesText.value || state.fileName || '',
+    level: 'medium',
+  });
+
+  let full = '';
+  try {
+    const res = await fetch(STREAM_URLS.interactive_quiz, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      full += chunk;
+      bubble.insertBefore(document.createTextNode(chunk), cursor);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+    cursor.remove();
+    quizStatus().textContent = '✅';
+
+    // accumulate conversation history
+    quizHistory.push({ role: 'user', content: msg });
+    quizHistory.push({ role: 'assistant', content: full });
+    saveHistory();
+  } catch (err) {
+    cursor.remove();
+    bubble.innerHTML = `<span class="err">Failed: ${escapeHtml(err.message || String(err))}</span>`;
+    quizStatus().textContent = '⚠️';
+  }
+}
+
+chatSend.addEventListener('click', sendChat);
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+/* ============================================================
+   History (localStorage)
+   ============================================================ */
+const HISTORY_KEY = 'studysnap_history';
+const historyBar = document.getElementById('historyBar');
+
+function saveHistory() {
+  try {
+    const snapshot = {
+      id: Date.now(),
+      name: state.fileName || (notesText.value ? notesText.value.slice(0, 40) + '…' : 'Session'),
+      theme: document.body.getAttribute('data-theme') || '',
+      notes: notesText.value || '',
+      outputs: {},
+      quiz: quizHistory.slice(),
+      ts: new Date().toLocaleString(),
+    };
+    STREAM_WIDGETS.forEach(w => { snapshot.outputs[w] = outputEl(w).innerHTML; });
+    snapshot.outputs.topic_visual = outputEl('topic_visual').innerHTML;
+
+    const all = loadHistoryList();
+    // replace same-session entry if the last one is very recent
+    const existingIdx = all.findIndex(h => h.name === snapshot.name);
+    if (existingIdx >= 0) all.splice(existingIdx, 1);
+    all.unshift(snapshot);
+    while (all.length > 8) all.pop();
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(all));
+    renderHistoryBar();
+  } catch (e) { /* storage may be unavailable */ }
+}
+
+function loadHistoryList() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function renderHistoryBar() {
+  const all = loadHistoryList();
+  historyBar.innerHTML = all.length ? '<span style="font-size:12.5px;color:var(--muted);align-self:center">🕘 History:</span>' : '';
+  all.forEach(h => {
+    const chip = document.createElement('span');
+    chip.className = 'history-item';
+    chip.textContent = h.name;
+    chip.title = 'Restore session from ' + h.ts;
+    chip.addEventListener('click', () => restoreHistory(h.id));
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.addEventListener('click', e => { e.stopPropagation(); deleteHistory(h.id); });
+    chip.appendChild(del);
+    historyBar.appendChild(chip);
+  });
+}
+
+function restoreHistory(id) {
+  const h = loadHistoryList().find(x => x.id === id);
+  if (!h) return;
+  notesText.value = h.notes || '';
+  document.body.setAttribute('data-theme', h.theme || '');
+  Object.keys(h.outputs || {}).forEach(w => {
+    const el = outputEl(w);
+    if (el) { el.innerHTML = h.outputs[w]; statusEl(w).textContent = '🕘 restored'; }
+  });
+  quizHistory = (h.quiz || []).slice();
+  chatWindow.innerHTML = '';
+  if (!quizHistory.length) {
+    addBotBubble('Restored session. Type start to run the quiz again.');
+  } else {
+    quizHistory.forEach(m => m.role === 'user' ? addUserBubble(m.content) : addBotBubble(m.content));
+  }
+}
+
+function deleteHistory(id) {
+  const all = loadHistoryList().filter(x => x.id !== id);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(all));
+  renderHistoryBar();
+}
+
+renderHistoryBar();
+</script>
+</body>
+</html>
