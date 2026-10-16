@@ -259,12 +259,12 @@
 
   /* flashcards */
   .fc-hint { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
-  .fc-deck { display: flex; flex-direction: column; gap: 12px; }
+  .fc-deck { display: flex; flex-direction: column; gap: 14px; }
   .fc-card {
     perspective: 1000px;
     cursor: pointer;
     outline: none;
-    min-height: 120px;
+    height: 150px;            /* fixed box so absolutely-positioned faces have height */
   }
   .fc-card:focus-visible .fc-inner {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 45%, white);
@@ -273,7 +273,7 @@
   .fc-inner {
     position: relative;
     width: 100%;
-    min-height: 120px;
+    height: 100%;
     transform-style: preserve-3d;
     transition: transform 0.55s cubic-bezier(.2,.7,.2,1);
   }
@@ -284,10 +284,10 @@
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
     border-radius: 14px;
-    padding: 16px 18px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     overflow-y: auto;
     border: 1px solid var(--border);
     box-shadow: 0 6px 16px rgba(124, 92, 255, 0.10);
@@ -399,12 +399,12 @@ Just upload your file and all three outputs will generate automatically!</div>
   <!-- Widget 2: Document upload -->
   <section class="card">
     <h2>📄 Lecture Notes</h2>
-    <p class="subtitle">Upload your lecture notes PDF file here.</p>
+    <p class="subtitle">Upload your lecture notes here — PDF, Word, text, or an image of your notes.</p>
     <label class="dropzone" id="dropzone">
       <div class="big">⬆️</div>
-      <div><strong>Drag &amp; drop</strong> your PDF here, or click to browse</div>
-      <div class="hint">Accepted: PDF (you may also paste text below)</div>
-      <input type="file" id="fileInput" accept="application/pdf" />
+      <div><strong>Drag &amp; drop</strong> your file here, or click to browse</div>
+      <div class="hint">Accepted: PDF, DOC/DOCX, TXT, images (PNG/JPG) — or paste text below</div>
+      <input type="file" id="fileInput" accept="application/pdf,.pdf,.doc,.docx,.txt,.md,.rtf,.csv,image/*" />
     </label>
     <div class="file-chip" id="fileChip"></div>
     <textarea class="notes" id="notesText" placeholder="Optional: paste lecture notes text here if you don't have a PDF..."></textarea>
@@ -493,7 +493,21 @@ Just upload your file and all three outputs will generate automatically!</div>
     </div>
   </section>
 
-  <div class="footer-note">StudySnap · Powered by Amazon Bedrock (Claude Haiku 4.5 &amp; Nova Canvas)</div>
+  <!-- Study Assistant chatbox -->
+  <section class="card" data-widget="study_chat">
+    <div class="panel-head">
+      <h2>💬 Ask the Study Assistant</h2>
+      <span class="status-dot" data-status></span>
+    </div>
+    <p class="subtitle">Ask anything about your uploaded notes — explanations, examples, quick quizzes, or study tips.</p>
+    <div class="chat-window" id="assistWindow"></div>
+    <div class="chat-input-row">
+      <input type="text" id="assistInput" placeholder="e.g. Explain the hardest concept in simple terms..." />
+      <button class="btn" id="assistSend">Send</button>
+    </div>
+  </section>
+
+  <div class="footer-note">StudySnap · Powered by Amazon Bedrock (Claude Haiku 4.5)</div>
 </div>
 
 <script>
@@ -508,6 +522,7 @@ const STREAM_URLS = {
   difficulty_level_tag: 'URL_DIFFICULTY_LEVEL_TAG',
   flashcards:           'URL_FLASHCARDS',
   interactive_quiz:     'URL_INTERACTIVE_QUIZ',
+  study_chat:           'URL_STUDY_CHAT',
 };
 
 const STREAM_WIDGETS = [
@@ -589,6 +604,7 @@ function buildBody(extra) {
   if (state.fileData) {
     body.file_data = state.fileData;
     body.file_mime = state.fileMime;
+    body.file_name = state.fileName || '';
   }
   return Object.assign(body, extra || {});
 }
@@ -808,6 +824,11 @@ function renderMdLineBeforeCursorless(container, text) {
   String(text).split('\n').forEach(line => renderMdLine(container, line));
 }
 
+/* Render markdown into any container (used by chat bubbles) */
+function renderMarkdownInto(container, text) {
+  String(text).split('\n').forEach(line => renderMdLine(container, line));
+}
+
 /* Re-attach flip handlers after restoring flashcards from history (innerHTML drops listeners) */
 function rebindFlashcardFlips() {
   const out = outputEl('flashcards');
@@ -871,10 +892,14 @@ function addUserBubble(text) {
   chatWindow.appendChild(b);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
-function addBotBubble(text) {
+function addBotBubble(text, asMarkdown) {
   const b = document.createElement('div');
   b.className = 'bubble bot';
-  b.textContent = text;
+  if (asMarkdown && text) {
+    renderMarkdownInto(b, text);
+  } else {
+    b.textContent = text;
+  }
   chatWindow.appendChild(b);
   chatWindow.scrollTop = chatWindow.scrollHeight;
   return b;
@@ -918,15 +943,22 @@ async function sendChat() {
 
     full = data.text || '';
 
-    // typewriter reveal into the bubble so it still feels live
-    const delay = Math.max(6, Math.min(30, Math.round(1200 / Math.max(full.length, 1))));
+    // typewriter reveal (plain) so it feels live
+    const plain = document.createElement('span');
+    bubble.insertBefore(plain, cursor);
+    const delay = Math.max(4, Math.min(24, Math.round(1200 / Math.max(full.length, 1))));
     for (let i = 0; i < full.length; i++) {
-      bubble.insertBefore(document.createTextNode(full[i]), cursor);
+      plain.appendChild(document.createTextNode(full[i]));
       if (i % 3 === 0) { chatWindow.scrollTop = chatWindow.scrollHeight; await sleep(delay); }
     }
+    cursor.remove();
+
+    // re-render the finished reply as formatted markdown (line breaks, bold, lists,
+    // A/B/C/D options) so the explanation is arranged properly instead of one blob
+    bubble.innerHTML = '';
+    renderMarkdownInto(bubble, full);
     chatWindow.scrollTop = chatWindow.scrollHeight;
 
-    cursor.remove();
     quizStatus().textContent = '✅';
 
     // accumulate conversation history
@@ -944,6 +976,91 @@ chatSend.addEventListener('click', sendChat);
 chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
 /* ============================================================
+   Study Assistant chatbox (general Q&A about the notes)
+   ============================================================ */
+const assistWindow = document.getElementById('assistWindow');
+const assistInput = document.getElementById('assistInput');
+const assistSend = document.getElementById('assistSend');
+const assistStatus = () => statusEl('study_chat');
+
+let assistHistory = [];   // [{role, content}]
+
+function addAssistBubble(text, who, asMarkdown) {
+  const b = document.createElement('div');
+  b.className = 'bubble ' + (who === 'user' ? 'user' : 'bot');
+  if (asMarkdown && text) renderMarkdownInto(b, text);
+  else b.textContent = text;
+  assistWindow.appendChild(b);
+  assistWindow.scrollTop = assistWindow.scrollHeight;
+  return b;
+}
+
+addAssistBubble("Hi! 👋 Upload your notes, then ask me anything about them — I can explain tricky concepts, give examples, or quiz you informally.", 'bot');
+
+async function sendAssist() {
+  const msg = assistInput.value.trim();
+  if (!msg) return;
+  if (!hasInput()) {
+    alert('Please upload a file or paste some notes first so I have something to work with.');
+    return;
+  }
+  assistInput.value = '';
+  addAssistBubble(msg, 'user');
+
+  const bubble = addAssistBubble('', 'bot');
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  cursor.textContent = '▋';
+  bubble.appendChild(cursor);
+
+  assistStatus().innerHTML = '<span class="spinner"></span> thinking…';
+
+  const body = buildBody({
+    history: assistHistory.slice(),
+    message: msg,
+  });
+
+  let full = '';
+  try {
+    const res = await fetch(STREAM_URLS.study_chat, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+    if (data.error) throw new Error(data.error);
+
+    full = data.text || '';
+
+    const plain = document.createElement('span');
+    bubble.insertBefore(plain, cursor);
+    const delay = Math.max(4, Math.min(24, Math.round(1200 / Math.max(full.length, 1))));
+    for (let i = 0; i < full.length; i++) {
+      plain.appendChild(document.createTextNode(full[i]));
+      if (i % 3 === 0) { assistWindow.scrollTop = assistWindow.scrollHeight; await sleep(delay); }
+    }
+    cursor.remove();
+
+    bubble.innerHTML = '';
+    renderMarkdownInto(bubble, full);
+    assistWindow.scrollTop = assistWindow.scrollHeight;
+
+    assistStatus().textContent = '✅';
+    assistHistory.push({ role: 'user', content: msg });
+    assistHistory.push({ role: 'assistant', content: full });
+    saveHistory();
+  } catch (err) {
+    cursor.remove();
+    bubble.innerHTML = `<span class="err">Failed: ${escapeHtml(err.message || String(err))}</span>`;
+    assistStatus().textContent = '⚠️';
+  }
+}
+
+assistSend.addEventListener('click', sendAssist);
+assistInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendAssist(); });
+
+/* ============================================================
    History (localStorage)
    ============================================================ */
 const HISTORY_KEY = 'studysnap_history';
@@ -958,6 +1075,7 @@ function saveHistory() {
       notes: notesText.value || '',
       outputs: {},
       quiz: quizHistory.slice(),
+      assist: assistHistory.slice(),
       ts: new Date().toLocaleString(),
     };
     STREAM_WIDGETS.forEach(w => { snapshot.outputs[w] = outputEl(w).innerHTML; });
@@ -1010,7 +1128,15 @@ function restoreHistory(id) {
   if (!quizHistory.length) {
     addBotBubble('Restored session. Type start to run the quiz again.');
   } else {
-    quizHistory.forEach(m => m.role === 'user' ? addUserBubble(m.content) : addBotBubble(m.content));
+    quizHistory.forEach(m => m.role === 'user' ? addUserBubble(m.content) : addBotBubble(m.content, true));
+  }
+
+  assistHistory = (h.assist || []).slice();
+  assistWindow.innerHTML = '';
+  if (!assistHistory.length) {
+    addAssistBubble('Restored session. Ask me anything about these notes.', 'bot');
+  } else {
+    assistHistory.forEach(m => addAssistBubble(m.content, m.role === 'user' ? 'user' : 'bot', m.role !== 'user'));
   }
 }
 

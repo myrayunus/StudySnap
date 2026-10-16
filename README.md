@@ -11,15 +11,20 @@ quiz — powered by **Amazon Bedrock** (Claude Haiku 4.5), deployed to
 Browser (S3 static site)
   │  buffered JSON  (fetch → { text })        progressive typewriter render on the client
   ▼
-7 Lambdas behind one API Gateway (prod stage)
+8 Lambdas behind one API Gateway (prod stage)
   • Estimated Study Time  ──►  Bedrock Claude Haiku 4.5
   • Bullet Point Summary  ──►  Bedrock Claude Haiku 4.5
   • Key Terms Glossary    ──►  Bedrock Claude Haiku 4.5
   • Real World Examples   ──►  Bedrock Claude Haiku 4.5
   • Difficulty Level Tag  ──►  Bedrock Claude Haiku 4.5
-  • Flashcards            ──►  Bedrock Claude Haiku 4.5
+  • Flashcards            ──►  Bedrock Claude Haiku 4.5   (rendered as click-to-flip cards)
   • Interactive Quiz      ──►  Bedrock Claude Haiku 4.5   (chat: history replayed each turn)
+  • Study Chat            ──►  Bedrock Claude Haiku 4.5   (free-form Q&A about the notes)
 ```
+
+Uploads accept **PDF, Word (doc/docx), text (txt/md/csv/html/json), and images (png/jpg)**.
+Images and PDFs go to Claude as native blocks; text files are decoded and inlined; other
+types are attempted as document blocks.
 
 > **Note on streaming:** the deploy region (`ap-southeast-5`, Malaysia) does not yet support
 > Lambda Function URLs (`AWS::Lambda::Url`) or the Lambda Web Adapter layer, so true

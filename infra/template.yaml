@@ -149,6 +149,19 @@ Resources:
             Path: /interactive-quiz
             Method: post
 
+  StudyChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/study_chat/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /study-chat
+            Method: post
+
   # ---------------------------------------------------------------------------
   # S3 static website hosting
   # ---------------------------------------------------------------------------
@@ -194,6 +207,8 @@ Outputs:
     Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/flashcards
   InteractiveQuizUrl:
     Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/interactive-quiz
+  StudyChatUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/study-chat
   WebsiteUrl:
     Value: !GetAtt FrontendBucket.WebsiteURL
   BucketName:

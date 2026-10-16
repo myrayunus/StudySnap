@@ -25,8 +25,36 @@ def _response(status, body):
     return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
 
-def media_type_for(file_mime):
-    return file_mime if file_mime else "application/pdf"
+IMAGE_MEDIA = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"}
+TEXT_EXTS = {"txt", "md", "markdown", "csv", "tsv", "json", "html", "htm", "rtf", "log", "xml", "yaml", "yml"}
+
+
+def _ext(file_name):
+    if file_name and "." in file_name:
+        return file_name.rsplit(".", 1)[1].lower()
+    return ""
+
+
+def file_content_block(file_data, file_mime, file_name):
+    mime = (file_mime or "").lower()
+    ext = _ext(file_name)
+
+    if mime in IMAGE_MEDIA or mime.startswith("image/") or ext in {"png", "jpg", "jpeg", "gif", "webp"}:
+        media = mime if mime.startswith("image/") else "image/" + ("jpeg" if ext in {"jpg", "jpeg"} else ext or "png")
+        return {"type": "image", "source": {"type": "base64", "media_type": media, "data": file_data}}
+
+    if mime == "application/pdf" or ext == "pdf":
+        return {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": file_data}}
+
+    if ext in TEXT_EXTS or mime.startswith("text/") or mime in {"application/json", "application/xml"}:
+        try:
+            decoded = base64.b64decode(file_data).decode("utf-8", errors="replace")
+            return {"type": "text", "text": "Uploaded file contents:\n\n" + decoded}
+        except Exception:  # noqa: BLE001
+            pass
+
+    media = mime or "application/pdf"
+    return {"type": "document", "source": {"type": "base64", "media_type": media, "data": file_data}}
 
 
 def build_first_user_content(body):
@@ -34,26 +62,8 @@ def build_first_user_content(body):
     content = []
 
     file_data = body.get("file_data")
-    file_mime = body.get("file_mime")
     if file_data:
-        if file_mime and file_mime.startswith("image/"):
-            content.append(
-                {
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": file_mime, "data": file_data},
-                }
-            )
-        else:
-            content.append(
-                {
-                    "type": "document",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type_for(file_mime),
-                        "data": file_data,
-                    },
-                }
-            )
+        content.append(file_content_block(file_data, body.get("file_mime"), body.get("file_name")))
 
     parts = []
     if notes_text:

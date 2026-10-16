@@ -71,6 +71,9 @@ jobs:
           URL=$(get_output InteractiveQuizUrl)
           sed -i "s|URL_INTERACTIVE_QUIZ|$URL|g" frontend/index.html
 
+          URL=$(get_output StudyChatUrl)
+          sed -i "s|URL_STUDY_CHAT|$URL|g" frontend/index.html
+
       - name: Sync frontend to S3
         run: |
           BUCKET=$(aws cloudformation describe-stacks --stack-name study-snap \
