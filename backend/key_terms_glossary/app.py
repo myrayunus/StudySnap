@@ -1,15 +1,20 @@
+import base64
 import json
 import os
 
 import boto3
-from flask import Flask, Response, request, stream_with_context
-
-app = Flask(__name__)
 
 MODEL_ID = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
 REGION = os.environ.get("BEDROCK_REGION", "ap-southeast-5")
 
 bedrock = boto3.client("bedrock-runtime", region_name=REGION)
+
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Content-Type": "application/json",
+}
 
 SYSTEM_PROMPT = """You are a helpful study assistant. A student has uploaded the following lecture notes.
 
@@ -22,18 +27,12 @@ Example: Give a short real-world or contextual example to clarify the term.
 List all key terms found in the notes. Prioritise technical vocabulary, named concepts, and any subject-specific terminology."""
 
 
-def cors_headers():
-    return {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST,OPTIONS",
-    }
+def _response(status, body):
+    return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
 
 def media_type_for(file_mime):
-    if file_mime:
-        return file_mime
-    return "application/pdf"
+    return file_mime if file_mime else "application/pdf"
 
 
 def build_messages(body):
@@ -47,11 +46,7 @@ def build_messages(body):
             content.append(
                 {
                     "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": file_mime,
-                        "data": file_data,
-                    },
+                    "source": {"type": "base64", "media_type": file_mime, "data": file_data},
                 }
             )
         else:
@@ -72,51 +67,42 @@ def build_messages(body):
         else "Here are the lecture notes (see the attached file)."
     )
     content.append({"type": "text", "text": prompt_text})
-
     return [{"role": "user", "content": content}]
 
 
-@app.route("/", methods=["OPTIONS"])
-def options():
-    return Response(status=200, headers=cors_headers())
+def invoke(messages):
+    request_body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 2048,
+        "temperature": 0.7,
+        "system": SYSTEM_PROMPT,
+        "messages": messages,
+    }
+    response = bedrock.invoke_model(modelId=MODEL_ID, body=json.dumps(request_body))
+    payload = json.loads(response["body"].read())
+    parts = [b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text"]
+    return "".join(parts)
 
 
-@app.route("/", methods=["POST"])
-def generate_route():
-    body = request.get_json(force=True, silent=True) or {}
-    messages = build_messages(body)
-
-    def generate():
-        request_body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 2048,
-            "temperature": 0.7,
-            "system": SYSTEM_PROMPT,
-            "messages": messages,
-        }
-        try:
-            response = bedrock.invoke_model_with_response_stream(
-                modelId=MODEL_ID,
-                body=json.dumps(request_body),
-            )
-            for event in response["body"]:
-                chunk = event.get("chunk")
-                if not chunk:
-                    continue
-                payload = json.loads(chunk["bytes"].decode("utf-8"))
-                if payload.get("type") == "content_block_delta":
-                    text = payload.get("delta", {}).get("text", "")
-                    if text:
-                        yield text
-        except Exception as exc:  # noqa: BLE001
-            yield f"\n[Error: {exc}]"
-
-    return Response(
-        stream_with_context(generate()),
-        content_type="text/plain; charset=utf-8",
-        headers=cors_headers(),
+def handler(event, context):
+    method = (
+        event.get("httpMethod")
+        or event.get("requestContext", {}).get("http", {}).get("method")
+        or "POST"
     )
+    if method == "OPTIONS":
+        return _response(200, {})
 
+    raw_body = event.get("body") or "{}"
+    if event.get("isBase64Encoded"):
+        raw_body = base64.b64decode(raw_body).decode("utf-8")
+    try:
+        body = json.loads(raw_body) if isinstance(raw_body, str) else raw_body
+    except json.JSONDecodeError:
+        body = {}
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "8080")))
+    try:
+        text = invoke(build_messages(body))
+        return _response(200, {"text": text})
+    except Exception as exc:  # noqa: BLE001
+        return _response(500, {"error": str(exc)})

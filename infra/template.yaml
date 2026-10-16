@@ -1,12 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: StudySnap - AI study assistant (7 streaming text Lambdas, 1 image Lambda, S3 site)
+Description: StudySnap - AI study assistant (7 text Lambdas + 1 image Lambda behind API Gateway, S3 site)
 
 Globals:
   Function:
     Runtime: python3.12
     Timeout: 60
     MemorySize: 256
+    Handler: app.handler
 
 Resources:
 
@@ -44,7 +45,7 @@ Resources:
                   - arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0
 
   # ---------------------------------------------------------------------------
-  # API Gateway (image widget only)
+  # Single API Gateway for every widget
   # ---------------------------------------------------------------------------
   AppApi:
     Type: AWS::Serverless::Api
@@ -56,144 +57,115 @@ Resources:
         AllowOrigin: "'*'"
 
   # ---------------------------------------------------------------------------
-  # Streaming text Lambdas (Lambda Web Adapter + Function URL)
+  # Text Lambdas (buffered, one API path each)
   # ---------------------------------------------------------------------------
   EstimatedStudyTimeFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/estimated_study_time/
-      Handler: run.sh
       Role: !GetAtt AppBedrockRole.Arn
-      Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
-      Environment:
-        Variables:
-          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
-          AWS_LWA_INVOKE_MODE: response_stream
-          PORT: "8080"
-      FunctionUrlConfig:
-        AuthType: NONE
-        InvokeMode: RESPONSE_STREAM
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /estimated-study-time
+            Method: post
 
   BulletPointSummaryFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/bullet_point_summary/
-      Handler: run.sh
       Role: !GetAtt AppBedrockRole.Arn
-      Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
-      Environment:
-        Variables:
-          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
-          AWS_LWA_INVOKE_MODE: response_stream
-          PORT: "8080"
-      FunctionUrlConfig:
-        AuthType: NONE
-        InvokeMode: RESPONSE_STREAM
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /bullet-point-summary
+            Method: post
 
   KeyTermsGlossaryFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/key_terms_glossary/
-      Handler: run.sh
       Role: !GetAtt AppBedrockRole.Arn
-      Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
-      Environment:
-        Variables:
-          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
-          AWS_LWA_INVOKE_MODE: response_stream
-          PORT: "8080"
-      FunctionUrlConfig:
-        AuthType: NONE
-        InvokeMode: RESPONSE_STREAM
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /key-terms-glossary
+            Method: post
 
   RealWorldExamplesFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/real_world_examples/
-      Handler: run.sh
       Role: !GetAtt AppBedrockRole.Arn
-      Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
-      Environment:
-        Variables:
-          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
-          AWS_LWA_INVOKE_MODE: response_stream
-          PORT: "8080"
-      FunctionUrlConfig:
-        AuthType: NONE
-        InvokeMode: RESPONSE_STREAM
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /real-world-examples
+            Method: post
 
   DifficultyLevelTagFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/difficulty_level_tag/
-      Handler: run.sh
       Role: !GetAtt AppBedrockRole.Arn
-      Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
-      Environment:
-        Variables:
-          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
-          AWS_LWA_INVOKE_MODE: response_stream
-          PORT: "8080"
-      FunctionUrlConfig:
-        AuthType: NONE
-        InvokeMode: RESPONSE_STREAM
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /difficulty-level-tag
+            Method: post
 
   FlashcardsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/flashcards/
-      Handler: run.sh
       Role: !GetAtt AppBedrockRole.Arn
-      Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
-      Environment:
-        Variables:
-          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
-          AWS_LWA_INVOKE_MODE: response_stream
-          PORT: "8080"
-      FunctionUrlConfig:
-        AuthType: NONE
-        InvokeMode: RESPONSE_STREAM
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /flashcards
+            Method: post
 
   InteractiveQuizFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/interactive_quiz/
-      Handler: run.sh
       Role: !GetAtt AppBedrockRole.Arn
-      Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:27
-      Environment:
-        Variables:
-          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
-          AWS_LWA_INVOKE_MODE: response_stream
-          PORT: "8080"
-      FunctionUrlConfig:
-        AuthType: NONE
-        InvokeMode: RESPONSE_STREAM
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /interactive-quiz
+            Method: post
 
   # ---------------------------------------------------------------------------
-  # Image Lambda (standard handler, behind API Gateway)
+  # Image Lambda (Nova Canvas)
   # ---------------------------------------------------------------------------
   TopicVisualFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/topic_visual/
-      Handler: app.handler
       Role: !GetAtt AppBedrockRole.Arn
       Timeout: 30
       MemorySize: 512
       Events:
-        Generate:
+        Post:
           Type: Api
           Properties:
             RestApiId: !Ref AppApi
-            Path: /
+            Path: /topic-visual
             Method: post
 
   # ---------------------------------------------------------------------------
@@ -225,22 +197,24 @@ Resources:
             Resource: !Sub ${FrontendBucket.Arn}/*
 
 Outputs:
-  DiagramApiUrl:
+  ApiBaseUrl:
     Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+  DiagramApiUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/topic-visual
   EstimatedStudyTimeUrl:
-    Value: !GetAtt EstimatedStudyTimeFunctionUrl.FunctionUrl
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/estimated-study-time
   BulletPointSummaryUrl:
-    Value: !GetAtt BulletPointSummaryFunctionUrl.FunctionUrl
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/bullet-point-summary
   KeyTermsGlossaryUrl:
-    Value: !GetAtt KeyTermsGlossaryFunctionUrl.FunctionUrl
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/key-terms-glossary
   RealWorldExamplesUrl:
-    Value: !GetAtt RealWorldExamplesFunctionUrl.FunctionUrl
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/real-world-examples
   DifficultyLevelTagUrl:
-    Value: !GetAtt DifficultyLevelTagFunctionUrl.FunctionUrl
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/difficulty-level-tag
   FlashcardsUrl:
-    Value: !GetAtt FlashcardsFunctionUrl.FunctionUrl
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/flashcards
   InteractiveQuizUrl:
-    Value: !GetAtt InteractiveQuizFunctionUrl.FunctionUrl
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/interactive-quiz
   WebsiteUrl:
     Value: !GetAtt FrontendBucket.WebsiteURL
   BucketName:

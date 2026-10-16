@@ -600,8 +600,23 @@ function renderMdLine(container, rawLine) {
 }
 
 /* ============================================================
-   Streaming fetch with per-line markdown flush + blinking cursor
+   Buffered fetch + progressive (typewriter) per-line render
+   The API returns the full text as JSON { text }. We reveal it
+   line-by-line with a blinking cursor so it still feels live.
    ============================================================ */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function revealLines(out, cursor, fullText) {
+  const lines = String(fullText).split('\n');
+  // pace reveal so short results aren't instant and long ones aren't slow
+  const delay = Math.max(8, Math.min(60, Math.round(900 / Math.max(lines.length, 1))));
+  for (const line of lines) {
+    renderMdLineBeforeCursor(out, cursor, line);
+    out.scrollTop = out.scrollHeight;
+    await sleep(delay);
+  }
+}
+
 async function streamToPanel(widget, body) {
   const url = STREAM_URLS[widget];
   setLoading(widget);
@@ -618,27 +633,11 @@ async function streamToPanel(widget, body) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+    if (data.error) throw new Error(data.error);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      let nl;
-      while ((nl = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, nl);
-        buffer = buffer.slice(nl + 1);
-        renderMdLineBeforeCursor(out, cursor, line);
-      }
-      out.scrollTop = out.scrollHeight;
-    }
-    // flush any trailing partial line
-    if (buffer.length) renderMdLineBeforeCursor(out, cursor, buffer);
+    await revealLines(out, cursor, data.text || '');
 
     cursor.remove();
     setDone(widget);
@@ -773,19 +772,20 @@ async function sendChat() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+    if (data.error) throw new Error(data.error);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
+    full = data.text || '';
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      full += chunk;
-      bubble.insertBefore(document.createTextNode(chunk), cursor);
-      chatWindow.scrollTop = chatWindow.scrollHeight;
+    // typewriter reveal into the bubble so it still feels live
+    const delay = Math.max(6, Math.min(30, Math.round(1200 / Math.max(full.length, 1))));
+    for (let i = 0; i < full.length; i++) {
+      bubble.insertBefore(document.createTextNode(full[i]), cursor);
+      if (i % 3 === 0) { chatWindow.scrollTop = chatWindow.scrollHeight; await sleep(delay); }
     }
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+
     cursor.remove();
     quizStatus().textContent = '✅';
 

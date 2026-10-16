@@ -10,46 +10,51 @@ for text, Nova Canvas for images), deployed to **AWS Lambda + API Gateway + S3**
 
 ```
 Browser (S3 static site)
-  │  token-by-token streaming  (fetch + ReadableStream)
+  │  buffered JSON  (fetch → { text })        progressive typewriter render on the client
   ▼
-7 streaming Flask Lambdas  ──►  Bedrock Claude Haiku 4.5   (Function URLs, RESPONSE_STREAM)
-  • Estimated Study Time      via Lambda Web Adapter layer
-  • Bullet Point Summary
-  • Key Terms Glossary
-  • Real World Examples
-  • Difficulty Level Tag
-  • Flashcards
-  • Interactive Quiz (chat)
-  │  buffered JSON  (API Gateway)
-  ▼
-1 image Lambda  ──►  Bedrock Nova Canvas   (standard handler)
-  • Topic Visual
+8 Lambdas behind one API Gateway (prod stage)
+  • Estimated Study Time  ──►  Bedrock Claude Haiku 4.5
+  • Bullet Point Summary  ──►  Bedrock Claude Haiku 4.5
+  • Key Terms Glossary    ──►  Bedrock Claude Haiku 4.5
+  • Real World Examples   ──►  Bedrock Claude Haiku 4.5
+  • Difficulty Level Tag  ──►  Bedrock Claude Haiku 4.5
+  • Flashcards            ──►  Bedrock Claude Haiku 4.5
+  • Interactive Quiz      ──►  Bedrock Claude Haiku 4.5   (chat: history replayed each turn)
+  • Topic Visual          ──►  Bedrock Nova Canvas        (returns base64 image)
 ```
+
+> **Note on streaming:** the deploy region (`ap-southeast-5`, Malaysia) does not yet support
+> Lambda Function URLs (`AWS::Lambda::Url`) or the Lambda Web Adapter layer, so true
+> token-by-token streaming isn't available there. Every Lambda is a standard buffered handler
+> behind API Gateway, returning the full result as JSON. The frontend reveals text
+> progressively (typewriter/fade-in) so the experience still feels live.
 
 ## Project layout
 
 ```
-frontend/index.html                 Single-page app (streaming UI, chat, history, adaptive theme)
-backend/<widget>/app.py             One Flask streaming app per text widget
-backend/<widget>/run.sh             Startup script (python app.py) — Lambda Web Adapter entrypoint
-backend/<widget>/requirements.txt   flask + boto3
-backend/topic_visual/app.py         Standard Lambda handler calling Nova Canvas
-infra/template.yaml                 AWS SAM template (Lambdas, API, IAM role, S3)
+frontend/index.html                 Single-page app (progressive render, chat, history, adaptive theme)
+backend/<widget>/app.py             One buffered Lambda handler per widget (app.handler)
+backend/<widget>/requirements.txt   boto3
+backend/topic_visual/app.py         Lambda handler calling Nova Canvas
+infra/template.yaml                 AWS SAM template (Lambdas, API Gateway, IAM role, S3)
 .github/workflows/deploy.yml        CI/CD: build, deploy, inject URLs, sync to S3
 ```
 
 ## Pre-deployment checklist
 
-### 1. Enable Bedrock model access (region: `ap-southeast-5`)
+### 1. Bedrock model access (region: `ap-southeast-5`)
 
-In the AWS Console → **Bedrock → Model access**, enable:
+The old **Bedrock → Model access** console page is retired — serverless foundation models are
+auto-enabled on first invocation, and access is now governed by IAM (which this stack's
+`AppBedrockRole` already grants). Just make sure your account can invoke these two models in
+`ap-southeast-5`:
 
 - `global.anthropic.claude-haiku-4-5-20251001-v1:0` — Claude Haiku 4.5 (global cross-region inference profile)
 - `amazon.nova-canvas-v1:0` — Nova Canvas (image generation)
 
-> First-time accounts may need to submit the one-time use-case form before access is granted.
-> The `global.` inference profile routes requests worldwide (incl. us-east-2 / us-west-2) for
-> maximum throughput, which is why the IAM policy uses `*` for the foundation-model region.
+> First-time Anthropic use may still require the one-time use-case form (Console → Bedrock →
+> Model catalog → Claude Haiku 4.5). The `global.` inference profile can route across regions,
+> so the IAM policy allows the inference-profile and foundation-model ARNs with wildcard regions.
 
 ### 2. Create an S3 bucket for SAM deployment artifacts
 
@@ -85,7 +90,7 @@ When it finishes, the **WebsiteUrl** stack output is printed in the final step �
 ## How the app works
 
 1. **Upload** a PDF (drag & drop or click) — or paste raw notes text. The theme shifts to suit the subject.
-2. Click **Run All** to fire every text widget simultaneously (each streams token-by-token) plus the topic image.
+2. Click **Run All** to fire every text widget simultaneously (each reveals progressively) plus the topic image.
 3. Scroll the panels to review the summary, flashcards, glossary, examples, difficulty tags, and study-time estimate.
 4. In the **Interactive Quiz** chat, type `start`, then answer each question with `A`, `B`, `C`, or `D`.
 5. After 5 questions you get a score out of 5, then rate your confidence (1–5) for personalised study tips.
@@ -94,8 +99,9 @@ Each completed session is saved to **browser history** (localStorage) — click 
 
 ## Local notes
 
-- Text Lambdas use the **Lambda Web Adapter** layer so a normal Flask app streams over a Function URL.
-  The streaming contract is plain text: the frontend reads the body with `response.body.getReader()`.
+- All Lambdas are standard buffered handlers (`app.handler`) behind a single API Gateway.
+  Each returns `{ "text": "..." }` (or `{ "image_base64": "..." }` for the visual); the frontend
+  renders the markdown progressively so it still feels live.
 - The quiz Lambda keeps the lecture notes on the first user turn and replays `history` on later turns.
 - File uploads are sent as base64 in `file_data` with `file_mime`; PDFs become an Anthropic
   `document` content block, images become an `image` block, prepended to the user message.
