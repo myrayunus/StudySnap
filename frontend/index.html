@@ -874,39 +874,127 @@ function renderMdLineBeforeCursor(container, cursor, rawLine) {
    click-to-flip cards. Falls back to raw text if parsing fails.
    ============================================================ */
 function parseFlashcards(text) {
-  const cards = [];
-  if (!text) return cards;
+  if (!text) return [];
 
-  // Split into blocks per "FLASHCARD n of m". Tolerant of the ━ rule lines.
-  const blocks = text.split(/(?=🃏?\s*FLASHCARD\s+\d+\s+of\s+\d+)/i).filter(b => /FLASHCARD/i.test(b));
-  const source = blocks.length ? blocks : [text];
+  // Strategy A: split into per-card blocks (FLASHCARD n, "Card n", or ━ rule lines),
+  // then pull a question and an answer out of each block with tolerant markers.
+  let blocks = text
+    .split(/(?=(?:🃏\s*)?(?:FLASHCARD|CARD)\s*#?\s*\d+)/i)
+    .filter(b => /(FLASHCARD|CARD)\s*#?\s*\d+/i.test(b));
+
+  // If there were no "FLASHCARD n" headers, try splitting on the ━ rule separators.
+  if (blocks.length < 2) {
+    const bySep = text.split(/[━─]{5,}/).map(s => s.trim()).filter(Boolean);
+    if (bySep.length >= 2) blocks = bySep;
+  }
+
+  const source = blocks.length >= 1 ? blocks : [text];
+  const cards = [];
 
   for (const block of source) {
-    // QUESTION: everything after a "QUESTION" marker up to the reveal divider / ANSWER
-    const qMatch = block.match(/QUESTION\s*:?\s*([\s\S]*?)(?:⬇️|think of your answer|·\s·|·\s·\s·|ANSWER\s*:)/i);
-    const aMatch = block.match(/ANSWER\s*:?\s*([\s\S]*?)(?:━{3,}|🃏|$)/i);
-    if (qMatch && aMatch) {
-      const q = cleanCardText(qMatch[1]);
-      const a = cleanCardText(aMatch[1]);
-      if (q && a) cards.push({ q, a });
+    const pair = extractQA(block);
+    if (pair) cards.push(pair);
+  }
+
+  // Strategy B (fallback): no block had a clear Q/A — walk the whole text pairing
+  // "Q" lines with the following "A" lines.
+  if (cards.length < 2) {
+    const alt = extractQAPairsLineByLine(text);
+    if (alt.length > cards.length) return alt;
+  }
+
+  return cards;
+}
+
+// Pull one { q, a } from a block using several possible label styles.
+function extractQA(block) {
+  // Accept: QUESTION:, Q:, Q1:, **Question**, Front:, etc. and the answer counterparts.
+  const qLabel = /(?:^|\n)\s*\**\s*(?:❓\s*)?(?:QUESTION|QUES|Q|FRONT)\s*\d*\s*\**\s*[:\-)]\s*/i;
+  const aLabel = /(?:^|\n)\s*\**\s*(?:💡\s*)?(?:ANSWER|ANS|A|BACK)\s*\d*\s*\**\s*[:\-)]\s*/i;
+
+  const qIdx = block.search(qLabel);
+  const aIdx = block.search(aLabel);
+  if (qIdx === -1 || aIdx === -1 || aIdx <= qIdx) return null;
+
+  const afterQ = block.slice(qIdx).replace(qLabel, '');
+  // question is everything between the Q label and the A label
+  const aInAfterQ = afterQ.search(aLabel);
+  if (aInAfterQ === -1) return null;
+  const qRaw = afterQ.slice(0, aInAfterQ);
+  const aRaw = afterQ.slice(aInAfterQ).replace(aLabel, '');
+
+  const q = cleanCardText(qRaw);
+  const a = cleanCardText(aRaw);
+  if (q && a) return { q, a };
+  return null;
+}
+
+// Fallback: pair each Q-ish line with the text up to the next Q-ish line's answer.
+function extractQAPairsLineByLine(text) {
+  const lines = String(text).split('\n');
+  const cards = [];
+  let cur = null;
+  let mode = null; // 'q' | 'a'
+
+  const isQ = l => /^\s*\**\s*(?:❓\s*)?(?:QUESTION|QUES|Q|FRONT)\s*\d*\s*\**\s*[:\-)]/i.test(l);
+  const isA = l => /^\s*\**\s*(?:💡\s*)?(?:ANSWER|ANS|A|BACK)\s*\d*\s*\**\s*[:\-)]/i.test(l);
+  const strip = l => l.replace(/^\s*\**\s*(?:❓|💡)?\s*(?:QUESTION|QUES|Q|FRONT|ANSWER|ANS|A|BACK)\s*\d*\s*\**\s*[:\-)]\s*/i, '');
+
+  for (const line of lines) {
+    if (isQ(line)) {
+      if (cur && cur.q && cur.a) cards.push({ q: cleanCardText(cur.q), a: cleanCardText(cur.a) });
+      cur = { q: strip(line), a: '' };
+      mode = 'q';
+    } else if (isA(line) && cur) {
+      cur.a = strip(line);
+      mode = 'a';
+    } else if (cur && mode) {
+      cur[mode] += '\n' + line;
     }
   }
-  return cards;
+  if (cur && cur.q && cur.a) cards.push({ q: cleanCardText(cur.q), a: cleanCardText(cur.a) });
+  return cards.filter(c => c.q && c.a);
 }
 
 function cleanCardText(s) {
   return String(s)
-    .replace(/[━─]{3,}/g, '')             // rule lines
-    .replace(/·(\s·)+/g, '')               // dotted reveal divider
-    .replace(/⬇️.*$/gim, '')               // "think first" hint line
-    .replace(/HOW TO USE:.*$/gim, '')      // usage hint
+    .replace(/(?:🃏\s*)?(?:FLASHCARD|CARD)\s*#?\s*\d+(?:\s*of\s*\d+)?/gi, '') // card headers
+    .replace(/[━─]{3,}/g, '')               // rule lines
+    .replace(/·(?:\s*·)+/g, '')             // dotted reveal divider
+    .replace(/⬇️.*$/gim, '')                // "think first" hint line
+    .replace(/HOW TO USE:.*$/gim, '')       // usage hint
     .replace(/Think of your answer.*$/gim, '')
-    .replace(/^\s*[\r\n]+|[\r\n]+\s*$/g, '')
+    .replace(/then (?:scroll down|reveal).*$/gim, '')
+    .replace(/^[\s,.\-–—]+|[\s]+$/g, '')    // leading stray punctuation / trailing ws
     .trim();
 }
 
+function parseFlashcardsJson(text) {
+  // The backend asks the model for a JSON array of {question, answer}.
+  // Tolerate stray code fences or text around the array.
+  if (!text) return [];
+  let t = String(text).trim().replace(/^```(?:json)?/i, '').replace(/```$/,'').trim();
+  const start = t.indexOf('[');
+  const end = t.lastIndexOf(']');
+  if (start === -1 || end === -1 || end <= start) return [];
+  try {
+    const arr = JSON.parse(t.slice(start, end + 1));
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map(o => ({
+        q: String((o && (o.question ?? o.q ?? o.front)) || '').trim(),
+        a: String((o && (o.answer ?? o.a ?? o.back)) || '').trim(),
+      }))
+      .filter(c => c.q && c.a);
+  } catch (e) {
+    return [];
+  }
+}
+
 function renderFlashcards(out, text) {
-  const cards = parseFlashcards(text);
+  // Prefer structured JSON from the backend; fall back to parsing decorated text.
+  let cards = parseFlashcardsJson(text);
+  if (cards.length < 2) cards = parseFlashcards(text);
 
   // Fallback: couldn't parse cleanly -> show the raw text as before.
   if (cards.length < 2) {
