@@ -50,9 +50,6 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
           }
 
-          DIAGRAM_URL=$(get_output DiagramApiUrl)
-          sed -i "s|DIAGRAM_API_URL|$DIAGRAM_URL|g" frontend/index.html
-
           URL=$(get_output EstimatedStudyTimeUrl)
           sed -i "s|URL_ESTIMATED_STUDY_TIME|$URL|g" frontend/index.html
 

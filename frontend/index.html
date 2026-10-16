@@ -257,10 +257,6 @@
 
   .placeholder { color: var(--muted); font-style: italic; }
 
-  /* image panel */
-  .img-wrap { margin-top: 12px; text-align: center; }
-  .img-wrap img { max-width: 100%; border-radius: 14px; box-shadow: var(--shadow); }
-
   /* chat */
   .chat-window {
     margin-top: 12px;
@@ -408,16 +404,6 @@ Just upload your file and all three outputs will generate automatically!</div>
     </section>
   </div>
 
-  <!-- Widget 11: Topic Visual (image) -->
-  <section class="card" data-widget="topic_visual">
-    <div class="panel-head">
-      <h2>🎨 Topic Visual</h2>
-      <span class="status-dot" data-status></span>
-    </div>
-    <p class="subtitle">A cute illustration of your topic, generated with Amazon Nova Canvas.</p>
-    <div class="output autoheight" data-output><span class="placeholder">Run to generate a visual for your topic.</span></div>
-  </section>
-
   <!-- Widget 9: Quiz Instructions (static) -->
   <section class="card">
     <h2>🎯 Ready to test yourself?</h2>
@@ -453,7 +439,6 @@ const STREAM_URLS = {
   flashcards:           'URL_FLASHCARDS',
   interactive_quiz:     'URL_INTERACTIVE_QUIZ',
 };
-const DIAGRAM_API = 'DIAGRAM_API_URL';
 
 const STREAM_WIDGETS = [
   'estimated_study_time',
@@ -655,32 +640,6 @@ function renderMdLineBeforeCursor(container, cursor, rawLine) {
 }
 
 /* ============================================================
-   Image generation (buffered, via API Gateway)
-   ============================================================ */
-async function generateImage() {
-  const widget = 'topic_visual';
-  setLoading(widget);
-  const out = outputEl(widget);
-  const topic = notesText.value || state.fileName || 'this study topic';
-
-  try {
-    const res = await fetch(DIAGRAM_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic }),
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    const mime = data.mime || 'image/png';
-    out.innerHTML = `<div class="img-wrap"><img alt="Topic visual" src="data:${mime};base64,${data.image_base64}" /></div>`;
-    setDone(widget);
-  } catch (err) {
-    setError(widget, err.message || String(err));
-  }
-}
-
-/* ============================================================
    Run All
    ============================================================ */
 const runAllBtn = document.getElementById('runAllBtn');
@@ -692,7 +651,6 @@ runAllBtn.addEventListener('click', () => {
   applyThemeFromName(state.fileName || 'notes');
   const body = buildBody();
   STREAM_WIDGETS.forEach(w => streamToPanel(w, body));   // fire simultaneously
-  generateImage();
 });
 
 document.getElementById('clearBtn').addEventListener('click', () => {
@@ -702,7 +660,7 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   fileInput.value = '';
   document.body.setAttribute('data-theme', '');
   document.getElementById('themePill').textContent = 'Bright theme · upload notes to adapt';
-  STREAM_WIDGETS.concat(['topic_visual']).forEach(w => {
+  STREAM_WIDGETS.forEach(w => {
     outputEl(w).innerHTML = '<span class="placeholder">Upload notes and run to generate.</span>';
     statusEl(w).textContent = '';
   });
@@ -821,7 +779,6 @@ function saveHistory() {
       ts: new Date().toLocaleString(),
     };
     STREAM_WIDGETS.forEach(w => { snapshot.outputs[w] = outputEl(w).innerHTML; });
-    snapshot.outputs.topic_visual = outputEl('topic_visual').innerHTML;
 
     const all = loadHistoryList();
     // replace same-session entry if the last one is very recent

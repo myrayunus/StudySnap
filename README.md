@@ -1,10 +1,9 @@
 # 📚 StudySnap
 
 An AI study assistant that turns lecture notes (PDF) into summaries, flashcards,
-key terms, real-world examples, difficulty tags, a cute topic illustration, and an
-interactive multiple-choice quiz — powered by **Amazon Bedrock** (Claude Haiku 4.5
-for text, Nova Canvas for images), deployed to **AWS Lambda + API Gateway + S3** via
-**AWS SAM** and **GitHub Actions**.
+key terms, real-world examples, difficulty tags, and an interactive multiple-choice
+quiz — powered by **Amazon Bedrock** (Claude Haiku 4.5), deployed to
+**AWS Lambda + API Gateway + S3** via **AWS SAM** and **GitHub Actions**.
 
 ## Architecture
 
@@ -12,7 +11,7 @@ for text, Nova Canvas for images), deployed to **AWS Lambda + API Gateway + S3**
 Browser (S3 static site)
   │  buffered JSON  (fetch → { text })        progressive typewriter render on the client
   ▼
-8 Lambdas behind one API Gateway (prod stage)
+7 Lambdas behind one API Gateway (prod stage)
   • Estimated Study Time  ──►  Bedrock Claude Haiku 4.5
   • Bullet Point Summary  ──►  Bedrock Claude Haiku 4.5
   • Key Terms Glossary    ──►  Bedrock Claude Haiku 4.5
@@ -20,7 +19,6 @@ Browser (S3 static site)
   • Difficulty Level Tag  ──►  Bedrock Claude Haiku 4.5
   • Flashcards            ──►  Bedrock Claude Haiku 4.5
   • Interactive Quiz      ──►  Bedrock Claude Haiku 4.5   (chat: history replayed each turn)
-  • Topic Visual          ──►  Bedrock Nova Canvas        (returns base64 image)
 ```
 
 > **Note on streaming:** the deploy region (`ap-southeast-5`, Malaysia) does not yet support
@@ -35,7 +33,6 @@ Browser (S3 static site)
 frontend/index.html                 Single-page app (progressive render, chat, history, adaptive theme)
 backend/<widget>/app.py             One buffered Lambda handler per widget (app.handler)
 backend/<widget>/requirements.txt   boto3
-backend/topic_visual/app.py         Lambda handler calling Nova Canvas
 infra/template.yaml                 AWS SAM template (Lambdas, API Gateway, IAM role, S3)
 .github/workflows/deploy.yml        CI/CD: build, deploy, inject URLs, sync to S3
 ```
@@ -50,7 +47,6 @@ auto-enabled on first invocation, and access is now governed by IAM (which this 
 `ap-southeast-5`:
 
 - `global.anthropic.claude-haiku-4-5-20251001-v1:0` — Claude Haiku 4.5 (global cross-region inference profile)
-- `amazon.nova-canvas-v1:0` — Nova Canvas (image generation)
 
 > First-time Anthropic use may still require the one-time use-case form (Console → Bedrock →
 > Model catalog → Claude Haiku 4.5). The `global.` inference profile can route across regions,
@@ -82,7 +78,7 @@ The workflow:
 1. `sam build --template infra/template.yaml`
 2. `sam deploy` to the `study-snap` CloudFormation stack in `ap-southeast-5`
 3. Reads the stack outputs (Function URLs + API URL)
-4. `sed`-injects each URL into `frontend/index.html` (replacing the `URL_*` / `DIAGRAM_API_URL` placeholders)
+4. `sed`-injects each URL into `frontend/index.html` (replacing the `URL_*` placeholders)
 5. `aws s3 sync frontend/` to the website bucket with `--cache-control no-cache`
 
 When it finishes, the **WebsiteUrl** stack output is printed in the final step — that's your live app.
@@ -90,7 +86,7 @@ When it finishes, the **WebsiteUrl** stack output is printed in the final step �
 ## How the app works
 
 1. **Upload** a PDF (drag & drop or click) — or paste raw notes text. The theme shifts to suit the subject.
-2. Click **Run All** to fire every text widget simultaneously (each reveals progressively) plus the topic image.
+2. Click **Run All** to fire every text widget simultaneously (each reveals progressively).
 3. Scroll the panels to review the summary, flashcards, glossary, examples, difficulty tags, and study-time estimate.
 4. In the **Interactive Quiz** chat, type `start`, then answer each question with `A`, `B`, `C`, or `D`.
 5. After 5 questions you get a score out of 5, then rate your confidence (1–5) for personalised study tips.
@@ -100,8 +96,8 @@ Each completed session is saved to **browser history** (localStorage) — click 
 ## Local notes
 
 - All Lambdas are standard buffered handlers (`app.handler`) behind a single API Gateway.
-  Each returns `{ "text": "..." }` (or `{ "image_base64": "..." }` for the visual); the frontend
-  renders the markdown progressively so it still feels live.
+  Each returns `{ "text": "..." }`; the frontend renders the markdown progressively so it
+  still feels live.
 - The quiz Lambda keeps the lecture notes on the first user turn and replays `history` on later turns.
 - File uploads are sent as base64 in `file_data` with `file_mime`; PDFs become an Anthropic
   `document` content block, images become an `image` block, prepended to the user message.

@@ -42,7 +42,6 @@ Resources:
                   - arn:aws:bedrock:*:*:inference-profile/*anthropic.claude-haiku-4-5-20251001-v1:0
                   - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
                   - arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
-                  - arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0
 
   # ---------------------------------------------------------------------------
   # Single API Gateway for every widget
@@ -151,24 +150,6 @@ Resources:
             Method: post
 
   # ---------------------------------------------------------------------------
-  # Image Lambda (Nova Canvas)
-  # ---------------------------------------------------------------------------
-  TopicVisualFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: ../backend/topic_visual/
-      Role: !GetAtt AppBedrockRole.Arn
-      Timeout: 30
-      MemorySize: 512
-      Events:
-        Post:
-          Type: Api
-          Properties:
-            RestApiId: !Ref AppApi
-            Path: /topic-visual
-            Method: post
-
-  # ---------------------------------------------------------------------------
   # S3 static website hosting
   # ---------------------------------------------------------------------------
   FrontendBucket:
@@ -199,8 +180,6 @@ Resources:
 Outputs:
   ApiBaseUrl:
     Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod
-  DiagramApiUrl:
-    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/topic-visual
   EstimatedStudyTimeUrl:
     Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/estimated-study-time
   BulletPointSummaryUrl:
