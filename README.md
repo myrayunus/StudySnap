@@ -40,7 +40,7 @@ infra/template.yaml                 AWS SAM template (Lambdas, API, IAM role, S3
 
 ## Pre-deployment checklist
 
-### 1. Enable Bedrock model access (region: `ap-southeast-1`)
+### 1. Enable Bedrock model access (region: `ap-southeast-5`)
 
 In the AWS Console → **Bedrock → Model access**, enable:
 
@@ -54,7 +54,7 @@ In the AWS Console → **Bedrock → Model access**, enable:
 ### 2. Create an S3 bucket for SAM deployment artifacts
 
 ```bash
-aws s3 mb s3://your-sam-deploy-bucket --region ap-southeast-1
+aws s3 mb s3://your-sam-deploy-bucket --region ap-southeast-5
 ```
 
 ### 3. Add GitHub repository secrets
@@ -75,7 +75,7 @@ Push to `main` (or run the **Deploy StudySnap** workflow manually via *Actions �
 The workflow:
 
 1. `sam build --template infra/template.yaml`
-2. `sam deploy` to the `study-snap` CloudFormation stack in `ap-southeast-1`
+2. `sam deploy` to the `study-snap` CloudFormation stack in `ap-southeast-5`
 3. Reads the stack outputs (Function URLs + API URL)
 4. `sed`-injects each URL into `frontend/index.html` (replacing the `URL_*` / `DIAGRAM_API_URL` placeholders)
 5. `aws s3 sync frontend/` to the website bucket with `--cache-control no-cache`

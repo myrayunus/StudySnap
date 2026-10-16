@@ -6,7 +6,7 @@ import random
 import boto3
 
 MODEL_ID = "amazon.nova-canvas-v1:0"
-REGION = os.environ.get("BEDROCK_REGION", "ap-southeast-1")
+REGION = os.environ.get("BEDROCK_REGION", "ap-southeast-5")
 
 bedrock = boto3.client("bedrock-runtime", region_name=REGION)
 

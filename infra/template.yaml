@@ -36,8 +36,10 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource:
-                  - !Sub arn:aws:bedrock:ap-southeast-1:${AWS::AccountId}:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0
-                  - arn:aws:bedrock:ap-southeast-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                  - !Sub arn:aws:bedrock:ap-southeast-5:${AWS::AccountId}:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:ap-southeast-5::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:*:*:inference-profile/*anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
                   - arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
                   - arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0
 
