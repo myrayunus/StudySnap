@@ -52,8 +52,39 @@ Resources:
       StageName: prod
       Cors:
         AllowMethods: "'POST,OPTIONS'"
-        AllowHeaders: "'Content-Type'"
+        AllowHeaders: "'Content-Type,x-api-key'"
         AllowOrigin: "'*'"
+
+  # API key + usage plan — endpoints require the x-api-key header.
+  # AppApi.Stage is the implicit stage ref SAM exposes for AWS::Serverless::Api,
+  # so the usage plan binds to the deployed stage without guessing its logical id.
+  AppApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: StudySnapApiKey
+      Enabled: true
+      Value: tbchgw8392843yfbndjs3r9
+
+  AppUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: StudySnapUsagePlan
+      ApiStages:
+        - ApiId: !Ref AppApi
+          Stage: !Ref AppApi.Stage
+      Throttle:
+        BurstLimit: 20
+        RateLimit: 10
+      Quota:
+        Limit: 5000
+        Period: DAY
+
+  AppUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref AppApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref AppUsagePlan
 
   # ---------------------------------------------------------------------------
   # Text Lambdas (buffered, one API path each)
@@ -70,6 +101,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /estimated-study-time
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   BulletPointSummaryFunction:
     Type: AWS::Serverless::Function
@@ -83,6 +116,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /bullet-point-summary
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   KeyTermsGlossaryFunction:
     Type: AWS::Serverless::Function
@@ -96,6 +131,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /key-terms-glossary
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   RealWorldExamplesFunction:
     Type: AWS::Serverless::Function
@@ -109,6 +146,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /real-world-examples
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   DifficultyLevelTagFunction:
     Type: AWS::Serverless::Function
@@ -122,6 +161,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /difficulty-level-tag
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   FlashcardsFunction:
     Type: AWS::Serverless::Function
@@ -135,6 +176,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /flashcards
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   InteractiveQuizFunction:
     Type: AWS::Serverless::Function
@@ -148,6 +191,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /interactive-quiz
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   StudyChatFunction:
     Type: AWS::Serverless::Function
@@ -161,6 +206,8 @@ Resources:
             RestApiId: !Ref AppApi
             Path: /study-chat
             Method: post
+            Auth:
+              ApiKeyRequired: true
 
   # ---------------------------------------------------------------------------
   # S3 static website hosting

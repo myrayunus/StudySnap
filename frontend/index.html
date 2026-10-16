@@ -656,17 +656,23 @@ Just upload your file and all three outputs will generate automatically!</div>
 
 <script>
 /* ============================================================
-   Endpoint URLs — injected by GitHub Actions at deploy time
+   API configuration
    ============================================================ */
+// NOTE: this file is served as public static JS from S3, so API_KEY is visible
+// in View Source. Only use an API Gateway usage-plan key here — never an AWS/Bedrock secret.
+// The value below is replaced with the real API Gateway base by GitHub Actions at deploy time.
+const API_URL = 'API_BASE_URL';
+const API_KEY = 'tbchgw8392843yfbndjs3r9';
+
 const STREAM_URLS = {
-  estimated_study_time: 'URL_ESTIMATED_STUDY_TIME',
-  bullet_point_summary: 'URL_BULLET_POINT_SUMMARY',
-  key_terms_glossary:   'URL_KEY_TERMS_GLOSSARY',
-  real_world_examples:  'URL_REAL_WORLD_EXAMPLES',
-  difficulty_level_tag: 'URL_DIFFICULTY_LEVEL_TAG',
-  flashcards:           'URL_FLASHCARDS',
-  interactive_quiz:     'URL_INTERACTIVE_QUIZ',
-  study_chat:           'URL_STUDY_CHAT',
+  estimated_study_time: API_URL + '/estimated-study-time',
+  bullet_point_summary: API_URL + '/bullet-point-summary',
+  key_terms_glossary:   API_URL + '/key-terms-glossary',
+  real_world_examples:  API_URL + '/real-world-examples',
+  difficulty_level_tag: API_URL + '/difficulty-level-tag',
+  flashcards:           API_URL + '/flashcards',
+  interactive_quiz:     API_URL + '/interactive-quiz',
+  study_chat:           API_URL + '/study-chat',
 };
 
 const STREAM_WIDGETS = [
@@ -677,6 +683,60 @@ const STREAM_WIDGETS = [
   'difficulty_level_tag',
   'flashcards',
 ];
+
+/* ============================================================
+   DEMO MODE — active only before deployment, when the URL
+   placeholders have NOT been replaced by GitHub Actions.
+   Lets you preview the UI locally with sample content.
+   Automatically disables itself once real URLs are injected.
+   ============================================================ */
+// Demo mode is on until GitHub Actions injects a real https API base URL.
+// (Before deploy, API_URL is the literal placeholder, not an https endpoint.)
+const DEMO = !/^https:\/\//.test(String(API_URL));
+
+const DEMO_TEXT = {
+  estimated_study_time:
+    "⏱️ Quick Skim: 10 minutes\n📖 Active Reading: 35 minutes\n🃏 Flashcard Review: 15 minutes\n📝 Quiz Practice: 20 minutes\n⏳ Total Estimated Time: 80 minutes\n\nThe material is moderately dense with several interlinked concepts, so active reading and spaced flashcard review will pay off most.",
+  bullet_point_summary:
+    "- Databases organise data so it can be stored, retrieved and updated efficiently\n- A **DBMS** sits between users and the raw data, enforcing structure and rules\n- Data **redundancy** wastes space and can cause inconsistencies\n- **Normalisation** reduces redundancy by splitting data into related tables\n- Keys (primary and foreign) link tables and keep relationships valid\n- Good design improves integrity, security and query performance",
+  key_terms_glossary:
+    "📌 DBMS\nDefinition: Software that manages how data is stored and accessed.\nExample: MySQL serving a shopping site's product catalogue.\n\n📌 Primary Key\nDefinition: A column whose value uniquely identifies each row.\nExample: a student_id that no two students share.\n\n📌 Normalisation\nDefinition: Organising tables to cut repetition.\nExample: storing a customer's address once, not on every order.",
+  real_world_examples:
+    "💡 Redundancy\nWhat it means: the same fact stored in several places.\nReal-world example: writing a friend's phone number in five notebooks — change it once and the others are wrong.\n\n💡 Foreign Key\nWhat it means: a reference from one table to another.\nReal-world example: an order slip that points to a customer card instead of recopying their details.",
+  difficulty_level_tag:
+    "🟢 EASY — What a database is: an everyday idea most students already grasp.\n🟡 MEDIUM — Normalisation: needs practice to apply to real tables.\n🟡 MEDIUM — Keys and relationships: straightforward once you see examples.\n🔴 HARD — Anomalies (update/insert/delete): abstract and easy to confuse.\n🔴 HARD — Choosing a schema: requires judgement, not just rules.\n\nFocus most of your time on anomalies and schema design — they carry the most marks and are the trickiest.",
+};
+
+const DEMO_FLASHCARDS = JSON.stringify([
+  { question: "What does DBMS stand for, and what does it do?", answer: "Database Management System — software that stores, retrieves and manages data while enforcing structure and rules." },
+  { question: "Why is data redundancy a problem?", answer: "It wastes storage and can lead to inconsistent data when one copy is updated but others are not." },
+  { question: "What is normalisation?", answer: "Organising data into related tables to reduce redundancy and improve integrity." },
+  { question: "What is a primary key?", answer: "A column (or set of columns) whose value uniquely identifies each row in a table." },
+  { question: "How does a foreign key help?", answer: "It links one table to another, keeping relationships between records valid." },
+]);
+
+if (DEMO) {
+  window.addEventListener('DOMContentLoaded', () => {
+    const pill = document.getElementById('themePill');
+    if (pill) {
+      pill.textContent = '🧪 Demo preview · sample content (deploy to use real AI)';
+      pill.style.background = '#fff3cd';
+      pill.style.color = '#8a6d00';
+      pill.style.borderColor = '#ffe38a';
+    }
+  });
+}
+
+function demoReply(widget, userMsg) {
+  if (widget === 'flashcards') return DEMO_FLASHCARDS;
+  if (widget === 'interactive_quiz') {
+    return "**Question 1 of 5**\n\nWhat does a DBMS primarily manage?\n\nA) Network traffic\nB) How data is stored and accessed\nC) Screen rendering\nD) Email delivery\n\nReply with A, B, C or D.";
+  }
+  if (widget === 'study_chat') {
+    return "Sure! 👋 In **demo mode** I can't reach the AI yet, but here's the idea: once deployed, I'll answer questions about your uploaded notes — explaining concepts, giving examples, or quizzing you. Try asking me again after deployment!";
+  }
+  return DEMO_TEXT[widget] || "Demo content for this panel.";
+}
 
 /* ============================================================
    State: uploaded file + notes
@@ -747,6 +807,7 @@ function buildBody(extra) {
 }
 
 function hasInput() {
+  if (DEMO) return true;  // preview without needing an upload
   return !!(state.fileData || (notesText.value && notesText.value.trim()));
 }
 
@@ -836,14 +897,20 @@ async function streamToPanel(widget, body) {
   out.appendChild(cursor);
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
-    if (data.error) throw new Error(data.error);
+    let data;
+    if (DEMO) {
+      await sleep(400);
+      data = { text: demoReply(widget) };
+    } else {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify(body),
+      });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      if (data.error) throw new Error(data.error);
+    }
 
     cursor.remove();
 
@@ -1157,14 +1224,20 @@ async function sendChat() {
 
   let full = '';
   try {
-    const res = await fetch(STREAM_URLS.interactive_quiz, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
-    if (data.error) throw new Error(data.error);
+    let data;
+    if (DEMO) {
+      await sleep(400);
+      data = { text: demoReply('interactive_quiz', msg) };
+    } else {
+      const res = await fetch(STREAM_URLS.interactive_quiz, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify(body),
+      });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      if (data.error) throw new Error(data.error);
+    }
 
     full = data.text || '';
 
@@ -1247,14 +1320,20 @@ async function sendAssist() {
 
   let full = '';
   try {
-    const res = await fetch(STREAM_URLS.study_chat, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
-    if (data.error) throw new Error(data.error);
+    let data;
+    if (DEMO) {
+      await sleep(400);
+      data = { text: demoReply('study_chat', msg) };
+    } else {
+      const res = await fetch(STREAM_URLS.study_chat, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify(body),
+      });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      if (data.error) throw new Error(data.error);
+    }
 
     full = data.text || '';
 

@@ -50,29 +50,10 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
           }
 
-          URL=$(get_output EstimatedStudyTimeUrl)
-          sed -i "s|URL_ESTIMATED_STUDY_TIME|$URL|g" frontend/index.html
-
-          URL=$(get_output BulletPointSummaryUrl)
-          sed -i "s|URL_BULLET_POINT_SUMMARY|$URL|g" frontend/index.html
-
-          URL=$(get_output KeyTermsGlossaryUrl)
-          sed -i "s|URL_KEY_TERMS_GLOSSARY|$URL|g" frontend/index.html
-
-          URL=$(get_output RealWorldExamplesUrl)
-          sed -i "s|URL_REAL_WORLD_EXAMPLES|$URL|g" frontend/index.html
-
-          URL=$(get_output DifficultyLevelTagUrl)
-          sed -i "s|URL_DIFFICULTY_LEVEL_TAG|$URL|g" frontend/index.html
-
-          URL=$(get_output FlashcardsUrl)
-          sed -i "s|URL_FLASHCARDS|$URL|g" frontend/index.html
-
-          URL=$(get_output InteractiveQuizUrl)
-          sed -i "s|URL_INTERACTIVE_QUIZ|$URL|g" frontend/index.html
-
-          URL=$(get_output StudyChatUrl)
-          sed -i "s|URL_STUDY_CHAT|$URL|g" frontend/index.html
+          # Inject the API Gateway base URL; the frontend builds each endpoint from it.
+          API_BASE=$(get_output ApiBaseUrl)
+          echo "Injecting API base URL: $API_BASE"
+          sed -i "s|API_BASE_URL|$API_BASE|g" frontend/index.html
 
       - name: Sync frontend to S3
         run: |
