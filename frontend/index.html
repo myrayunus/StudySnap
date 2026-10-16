@@ -257,6 +257,76 @@
 
   .placeholder { color: var(--muted); font-style: italic; }
 
+  /* flashcards */
+  .fc-hint { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+  .fc-deck { display: flex; flex-direction: column; gap: 12px; }
+  .fc-card {
+    perspective: 1000px;
+    cursor: pointer;
+    outline: none;
+    min-height: 120px;
+  }
+  .fc-card:focus-visible .fc-inner {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 45%, white);
+    border-radius: 14px;
+  }
+  .fc-inner {
+    position: relative;
+    width: 100%;
+    min-height: 120px;
+    transform-style: preserve-3d;
+    transition: transform 0.55s cubic-bezier(.2,.7,.2,1);
+  }
+  .fc-card.flipped .fc-inner { transform: rotateY(180deg); }
+  .fc-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    box-shadow: 0 6px 16px rgba(124, 92, 255, 0.10);
+  }
+  .fc-face::-webkit-scrollbar { width: 6px; }
+  .fc-face::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent-2) 35%, #d8cfee);
+    border-radius: 999px;
+  }
+  .fc-front {
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--accent) 10%, white),
+      color-mix(in srgb, var(--accent-2) 10%, white));
+  }
+  .fc-back {
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--accent-3) 14%, white),
+      color-mix(in srgb, var(--accent-2) 12%, white));
+    transform: rotateY(180deg);
+  }
+  .fc-badge {
+    align-self: flex-start;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: white;
+    color: var(--accent-2);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .fc-text { font-size: 15px; line-height: 1.5; color: var(--ink); }
+  .fc-tip {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
   /* chat */
   .chat-window {
     margin-top: 12px;
@@ -622,9 +692,16 @@ async function streamToPanel(widget, body) {
     if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
     if (data.error) throw new Error(data.error);
 
-    await revealLines(out, cursor, data.text || '');
-
     cursor.remove();
+
+    if (widget === 'flashcards') {
+      renderFlashcards(out, data.text || '');
+    } else {
+      out.appendChild(cursor);
+      await revealLines(out, cursor, data.text || '');
+      cursor.remove();
+    }
+
     setDone(widget);
     saveHistory();
   } catch (err) {
@@ -637,6 +714,111 @@ function renderMdLineBeforeCursor(container, cursor, rawLine) {
   const tmp = document.createElement('div');
   renderMdLine(tmp, rawLine);
   while (tmp.firstChild) container.insertBefore(tmp.firstChild, cursor);
+}
+
+/* ============================================================
+   Flashcards: parse the model's text into Q/A pairs and render
+   click-to-flip cards. Falls back to raw text if parsing fails.
+   ============================================================ */
+function parseFlashcards(text) {
+  const cards = [];
+  if (!text) return cards;
+
+  // Split into blocks per "FLASHCARD n of m". Tolerant of the ━ rule lines.
+  const blocks = text.split(/(?=🃏?\s*FLASHCARD\s+\d+\s+of\s+\d+)/i).filter(b => /FLASHCARD/i.test(b));
+  const source = blocks.length ? blocks : [text];
+
+  for (const block of source) {
+    // QUESTION: everything after a "QUESTION" marker up to the reveal divider / ANSWER
+    const qMatch = block.match(/QUESTION\s*:?\s*([\s\S]*?)(?:⬇️|think of your answer|·\s·|·\s·\s·|ANSWER\s*:)/i);
+    const aMatch = block.match(/ANSWER\s*:?\s*([\s\S]*?)(?:━{3,}|🃏|$)/i);
+    if (qMatch && aMatch) {
+      const q = cleanCardText(qMatch[1]);
+      const a = cleanCardText(aMatch[1]);
+      if (q && a) cards.push({ q, a });
+    }
+  }
+  return cards;
+}
+
+function cleanCardText(s) {
+  return String(s)
+    .replace(/[━─]{3,}/g, '')             // rule lines
+    .replace(/·(\s·)+/g, '')               // dotted reveal divider
+    .replace(/⬇️.*$/gim, '')               // "think first" hint line
+    .replace(/HOW TO USE:.*$/gim, '')      // usage hint
+    .replace(/Think of your answer.*$/gim, '')
+    .replace(/^\s*[\r\n]+|[\r\n]+\s*$/g, '')
+    .trim();
+}
+
+function renderFlashcards(out, text) {
+  const cards = parseFlashcards(text);
+
+  // Fallback: couldn't parse cleanly -> show the raw text as before.
+  if (cards.length < 2) {
+    out.innerHTML = '';
+    const pre = document.createElement('div');
+    renderMdLineBeforeCursorless(pre, text);
+    out.appendChild(pre);
+    return;
+  }
+
+  out.innerHTML = '';
+  const hint = document.createElement('div');
+  hint.className = 'fc-hint';
+  hint.textContent = '🃏 Tap a card to flip it. ' + cards.length + ' cards.';
+  out.appendChild(hint);
+
+  const deck = document.createElement('div');
+  deck.className = 'fc-deck';
+
+  cards.forEach((card, i) => {
+    const el = document.createElement('div');
+    el.className = 'fc-card';
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', 'Flashcard ' + (i + 1) + ', tap to flip');
+    el.innerHTML = `
+      <div class="fc-inner">
+        <div class="fc-face fc-front">
+          <div class="fc-badge">❓ Q${i + 1}</div>
+          <div class="fc-text">${inlineMd(card.q).replace(/\n/g, '<br>')}</div>
+          <div class="fc-tip">tap to reveal</div>
+        </div>
+        <div class="fc-face fc-back">
+          <div class="fc-badge">💡 A${i + 1}</div>
+          <div class="fc-text">${inlineMd(card.a).replace(/\n/g, '<br>')}</div>
+          <div class="fc-tip">tap to hide</div>
+        </div>
+      </div>`;
+    const flip = () => el.classList.toggle('flipped');
+    el.addEventListener('click', flip);
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+    });
+    deck.appendChild(el);
+  });
+
+  out.appendChild(deck);
+}
+
+/* Render markdown text (no cursor) — used by the flashcard raw-text fallback */
+function renderMdLineBeforeCursorless(container, text) {
+  String(text).split('\n').forEach(line => renderMdLine(container, line));
+}
+
+/* Re-attach flip handlers after restoring flashcards from history (innerHTML drops listeners) */
+function rebindFlashcardFlips() {
+  const out = outputEl('flashcards');
+  if (!out) return;
+  out.querySelectorAll('.fc-card').forEach(el => {
+    const flip = () => el.classList.toggle('flipped');
+    el.addEventListener('click', flip);
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+    });
+  });
 }
 
 /* ============================================================
@@ -822,6 +1004,7 @@ function restoreHistory(id) {
     const el = outputEl(w);
     if (el) { el.innerHTML = h.outputs[w]; statusEl(w).textContent = '🕘 restored'; }
   });
+  rebindFlashcardFlips();
   quizHistory = (h.quiz || []).slice();
   chatWindow.innerHTML = '';
   if (!quizHistory.length) {
