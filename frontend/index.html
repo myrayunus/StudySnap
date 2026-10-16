@@ -327,6 +327,138 @@
     font-style: italic;
   }
 
+  /* floating study-assistant chat popup */
+  .chat-fab {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 60;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    border-radius: 999px;
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 10px 26px color-mix(in srgb, var(--accent-2) 40%, transparent);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .chat-fab:hover { transform: translateY(-2px); }
+  .chat-fab-label { font-size: 14px; }
+  @media (max-width: 560px) { .chat-fab-label { display: none; } }
+
+  /* one-time "need help?" nudge next to the FAB */
+  .chat-nudge {
+    position: fixed;
+    right: 24px;
+    bottom: 84px;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 10px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 10px 26px rgba(43, 34, 64, 0.18);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    animation: nudge-in 0.35s ease, nudge-bob 2.4s ease-in-out 0.5s infinite;
+  }
+  .chat-nudge.show { display: flex; }
+  .chat-nudge::after {
+    content: "";
+    position: absolute;
+    right: 24px;
+    bottom: -7px;
+    width: 14px;
+    height: 14px;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    transform: rotate(45deg);
+  }
+  .chat-nudge-close {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 2px 4px;
+    border-radius: 6px;
+  }
+  .chat-nudge-close:hover { background: color-mix(in srgb, var(--accent) 12%, white); }
+  @keyframes nudge-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes nudge-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+  @media (max-width: 560px) { .chat-nudge { display: none !important; } }
+
+  .chat-popup {
+    position: fixed;
+    right: 22px;
+    bottom: 88px;
+    z-index: 61;
+    width: min(380px, calc(100vw - 32px));
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(43, 34, 64, 0.28);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    animation: popup-in 0.22s ease;
+  }
+  .chat-popup.open { display: flex; }
+  @keyframes popup-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .chat-popup-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(90deg,
+      color-mix(in srgb, var(--accent) 14%, white),
+      color-mix(in srgb, var(--accent-2) 14%, white));
+    border-bottom: 1px solid var(--border);
+  }
+  .chat-popup-title {
+    font-weight: 800;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .chat-popup-close {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+  .chat-popup-close:hover { background: color-mix(in srgb, var(--accent) 12%, white); }
+  .chat-popup .chat-window {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    max-height: 48vh;
+    min-height: 240px;
+  }
+  .chat-popup .chat-input-row { padding: 12px; margin: 0; border-top: 1px solid var(--border); }
+
   /* chat */
   .chat-window {
     margin-top: 12px;
@@ -380,7 +512,7 @@
 <header class="hero">
   <h1>📚 StudySnap</h1>
   <p>Your AI study assistant — summaries, flashcards, quizzes and more from your lecture notes.</p>
-  <div class="theme-pill" id="themePill">Bright theme · upload notes to adapt</div>
+  <div class="theme-pill" id="themePill">Bright theme</div>
 </header>
 
 <div class="container">
@@ -493,21 +625,33 @@ Just upload your file and all three outputs will generate automatically!</div>
     </div>
   </section>
 
-  <!-- Study Assistant chatbox -->
-  <section class="card" data-widget="study_chat">
-    <div class="panel-head">
-      <h2>💬 Ask the Study Assistant</h2>
-      <span class="status-dot" data-status></span>
+  <div class="footer-note">StudySnap · Powered by Amazon Bedrock (Claude Haiku 4.5)</div>
+</div>
+
+<!-- Study Assistant chat — floating popup -->
+<div data-widget="study_chat">
+  <div class="chat-nudge" id="chatNudge" aria-hidden="true">
+    <span>Need help? Ask me 👋</span>
+    <button class="chat-nudge-close" id="chatNudgeClose" aria-label="Dismiss">✕</button>
+  </div>
+  <button class="chat-fab" id="chatFab" aria-label="Open the Study Assistant chat">
+    💬<span class="chat-fab-label">Ask the Assistant</span>
+  </button>
+
+  <div class="chat-popup" id="chatPopup" role="dialog" aria-label="Study Assistant chat" aria-hidden="true">
+    <div class="chat-popup-head">
+      <div class="chat-popup-title">
+        💬 Study Assistant
+        <span class="status-dot" data-status></span>
+      </div>
+      <button class="chat-popup-close" id="chatPopupClose" aria-label="Close chat">✕</button>
     </div>
-    <p class="subtitle">Ask anything about your uploaded notes — explanations, examples, quick quizzes, or study tips.</p>
     <div class="chat-window" id="assistWindow"></div>
     <div class="chat-input-row">
-      <input type="text" id="assistInput" placeholder="e.g. Explain the hardest concept in simple terms..." />
+      <input type="text" id="assistInput" placeholder="Ask anything about your notes..." />
       <button class="btn" id="assistSend">Send</button>
     </div>
-  </section>
-
-  <div class="footer-note">StudySnap · Powered by Amazon Bedrock (Claude Haiku 4.5)</div>
+  </div>
 </div>
 
 <script>
@@ -585,15 +729,8 @@ function handleFile(file) {
    Theme adaptation after upload (based on filename keywords)
    ============================================================ */
 function applyThemeFromName(name) {
-  const n = (name || '').toLowerCase() + ' ' + (notesText.value || '').toLowerCase();
-  let theme = 'math', label = '🔢 Math / Logic theme';
-  if (/bio|chem|phys|science|anatomy|lab|cell|molecul/.test(n)) { theme = 'science'; label = '🔬 Science theme'; }
-  else if (/history|literat|philos|art|language|social|human/.test(n)) { theme = 'humanities'; label = '📜 Humanities theme'; }
-  else if (/business|econ|market|finance|account|manage/.test(n)) { theme = 'business'; label = '💼 Business theme'; }
-  else if (/math|calcul|algebra|geometr|statis|logic|comput|code|data/.test(n)) { theme = 'math'; label = '🔢 Math / Tech theme'; }
-  else { theme = 'science'; label = '✨ Adapted theme'; }
-  document.body.setAttribute('data-theme', theme);
-  document.getElementById('themePill').textContent = label + ' · adapted to your notes';
+  // Theme is locked to the original bright palette — no colour change on upload.
+  document.body.setAttribute('data-theme', '');
 }
 
 /* ============================================================
@@ -798,14 +935,14 @@ function renderFlashcards(out, text) {
     el.innerHTML = `
       <div class="fc-inner">
         <div class="fc-face fc-front">
-          <div class="fc-badge">❓ Q${i + 1}</div>
+          <div class="fc-badge">🂠 Front · Card ${i + 1}</div>
           <div class="fc-text">${inlineMd(card.q).replace(/\n/g, '<br>')}</div>
-          <div class="fc-tip">tap to reveal</div>
+          <div class="fc-tip">tap to flip to the back</div>
         </div>
         <div class="fc-face fc-back">
-          <div class="fc-badge">💡 A${i + 1}</div>
+          <div class="fc-badge">🂡 Back · Card ${i + 1}</div>
           <div class="fc-text">${inlineMd(card.a).replace(/\n/g, '<br>')}</div>
-          <div class="fc-tip">tap to hide</div>
+          <div class="fc-tip">tap to flip to the front</div>
         </div>
       </div>`;
     const flip = () => el.classList.toggle('flipped');
@@ -862,7 +999,7 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   notesText.value = '';
   fileInput.value = '';
   document.body.setAttribute('data-theme', '');
-  document.getElementById('themePill').textContent = 'Bright theme · upload notes to adapt';
+  document.getElementById('themePill').textContent = 'Bright theme';
   STREAM_WIDGETS.forEach(w => {
     outputEl(w).innerHTML = '<span class="placeholder">Upload notes and run to generate.</span>';
     statusEl(w).textContent = '';
@@ -1060,6 +1197,56 @@ async function sendAssist() {
 assistSend.addEventListener('click', sendAssist);
 assistInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendAssist(); });
 
+/* popup open/close */
+const chatFab = document.getElementById('chatFab');
+const chatPopup = document.getElementById('chatPopup');
+const chatPopupClose = document.getElementById('chatPopupClose');
+const chatNudge = document.getElementById('chatNudge');
+const chatNudgeClose = document.getElementById('chatNudgeClose');
+
+const NUDGE_KEY = 'studysnap_nudge_seen';
+
+function hideNudge(remember) {
+  chatNudge.classList.remove('show');
+  chatNudge.setAttribute('aria-hidden', 'true');
+  if (remember) { try { localStorage.setItem(NUDGE_KEY, '1'); } catch (e) {} }
+}
+
+function maybeShowNudge() {
+  let seen = false;
+  try { seen = localStorage.getItem(NUDGE_KEY) === '1'; } catch (e) {}
+  if (seen) return;
+  // show after a short delay so it feels like a gentle prompt, not a popup on load
+  setTimeout(() => {
+    if (!chatPopup.classList.contains('open')) {
+      chatNudge.classList.add('show');
+      chatNudge.setAttribute('aria-hidden', 'false');
+    }
+  }, 3500);
+}
+
+function openChatPopup() {
+  hideNudge(true);
+  chatPopup.classList.add('open');
+  chatPopup.setAttribute('aria-hidden', 'false');
+  chatFab.style.display = 'none';
+  setTimeout(() => assistInput.focus(), 50);
+}
+function closeChatPopup() {
+  chatPopup.classList.remove('open');
+  chatPopup.setAttribute('aria-hidden', 'true');
+  chatFab.style.display = 'flex';
+}
+chatFab.addEventListener('click', openChatPopup);
+chatPopupClose.addEventListener('click', closeChatPopup);
+chatNudge.addEventListener('click', openChatPopup);
+chatNudgeClose.addEventListener('click', e => { e.stopPropagation(); hideNudge(true); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && chatPopup.classList.contains('open')) closeChatPopup();
+});
+
+maybeShowNudge();
+
 /* ============================================================
    History (localStorage)
    ============================================================ */
@@ -1117,7 +1304,7 @@ function restoreHistory(id) {
   const h = loadHistoryList().find(x => x.id === id);
   if (!h) return;
   notesText.value = h.notes || '';
-  document.body.setAttribute('data-theme', h.theme || '');
+  document.body.setAttribute('data-theme', '');
   Object.keys(h.outputs || {}).forEach(w => {
     const el = outputEl(w);
     if (el) { el.innerHTML = h.outputs[w]; statusEl(w).textContent = '🕘 restored'; }
