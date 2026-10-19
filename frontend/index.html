@@ -658,10 +658,11 @@ Just upload your file and all three outputs will generate automatically!</div>
 /* ============================================================
    API configuration
    ============================================================ */
-// NOTE: this file is served as public static JS from S3, so API_KEY is visible
-// in View Source. Only use an API Gateway usage-plan key here — never an AWS/Bedrock secret.
-// The value below is replaced with the real API Gateway base by GitHub Actions at deploy time.
-const API_URL = 'API_BASE_URL';
+// NOTE: this file is public static JS (visible in View Source). API_KEY is an
+// API Gateway usage-plan key only — never put an AWS/Bedrock secret here.
+// API_URL is hardcoded so the page works when served from GitHub Pages (HTTPS),
+// S3, or opened locally. Update it if the API Gateway id ever changes.
+const API_URL = 'https://69y7jnl9f7.execute-api.ap-southeast-5.amazonaws.com/prod';
 const API_KEY = 'tbchgw8392843yfbndjs3r9';
 
 const STREAM_URLS = {
