@@ -876,6 +876,38 @@ function renderMdLine(container, rawLine) {
    ============================================================ */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/* POST with retry + backoff. Bedrock in a new region can return transient
+   500 / 503 / ServiceUnavailable / Throttling errors under concurrent load;
+   retrying after a short wait almost always succeeds. Returns parsed JSON. */
+async function postWithRetry(url, body, attempts = 4) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      const transient =
+        res.status === 500 || res.status === 503 || res.status === 429 ||
+        (data && typeof data.error === 'string' &&
+          /ServiceUnavailable|Throttling|ModelNotReady|TooManyRequests|unable to process/i.test(data.error));
+      if (res.ok && !(data && data.error)) return data;
+      if (transient && i < attempts - 1) {
+        await sleep(700 * (i + 1) + Math.random() * 300); // backoff + jitter
+        continue;
+      }
+      throw new Error((data && data.error) || ('HTTP ' + res.status));
+    } catch (e) {
+      lastErr = e;
+      // network-level failure: retry too
+      if (i < attempts - 1) { await sleep(700 * (i + 1)); continue; }
+    }
+  }
+  throw lastErr || new Error('Request failed');
+}
+
 async function revealLines(out, cursor, fullText) {
   const lines = String(fullText).split('\n');
   // pace reveal so short results aren't instant and long ones aren't slow
@@ -903,14 +935,7 @@ async function streamToPanel(widget, body) {
       await sleep(400);
       data = { text: demoReply(widget) };
     } else {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-        body: JSON.stringify(body),
-      });
-      data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
-      if (data.error) throw new Error(data.error);
+      data = await postWithRetry(url, body);
     }
 
     cursor.remove();
@@ -1139,14 +1164,20 @@ function rebindFlashcardFlips() {
    Run All
    ============================================================ */
 const runAllBtn = document.getElementById('runAllBtn');
-runAllBtn.addEventListener('click', () => {
+runAllBtn.addEventListener('click', async () => {
   if (!hasInput()) {
     alert('Please upload a PDF or paste some lecture notes first.');
     return;
   }
   applyThemeFromName(state.fileName || 'notes');
   const body = buildBody();
-  STREAM_WIDGETS.forEach(w => streamToPanel(w, body));   // fire simultaneously
+  // Stagger the launches so Bedrock isn't hit with 7 simultaneous calls at once
+  // (a new region's on-demand capacity can throttle under a burst). Each panel
+  // still runs independently; postWithRetry handles any transient failures.
+  for (const w of STREAM_WIDGETS) {
+    streamToPanel(w, body);
+    await sleep(600);
+  }
 });
 
 document.getElementById('clearBtn').addEventListener('click', () => {
@@ -1230,14 +1261,7 @@ async function sendChat() {
       await sleep(400);
       data = { text: demoReply('interactive_quiz', msg) };
     } else {
-      const res = await fetch(STREAM_URLS.interactive_quiz, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-        body: JSON.stringify(body),
-      });
-      data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
-      if (data.error) throw new Error(data.error);
+      data = await postWithRetry(STREAM_URLS.interactive_quiz, body);
     }
 
     full = data.text || '';
@@ -1326,14 +1350,7 @@ async function sendAssist() {
       await sleep(400);
       data = { text: demoReply('study_chat', msg) };
     } else {
-      const res = await fetch(STREAM_URLS.study_chat, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-        body: JSON.stringify(body),
-      });
-      data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
-      if (data.error) throw new Error(data.error);
+      data = await postWithRetry(STREAM_URLS.study_chat, body);
     }
 
     full = data.text || '';
