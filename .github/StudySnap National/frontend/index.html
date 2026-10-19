@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StudySnap — AI Study Assistant</title>
+<style>
+  :root {
+    --bg: #fff7ef;
+    --bg-grad-1: #fff1f7;
+    --bg-grad-2: #eef6ff;
+    --card: #ffffff;
+    --ink: #2b2240;
+    --muted: #6b6480;
+    --accent: #ff6fb5;
+    --accent-2: #7c5cff;
+    --accent-3: #30c7b5;
+    --border: #f0e6f5;
+    --shadow: 0 10px 30px rgba(124, 92, 255, 0.12);
+    --radius: 18px;
+  }
+
+  /* Theme that kicks in once notes are uploaded (set via body[data-theme]) */
+  body[data-theme="science"] {
+    --accent: #30c7b5; --accent-2: #2b8cff; --accent-3: #9b7bff;
+    --bg-grad-1: #e9fbff; --bg-grad-2: #eef3ff;
+  }
+  body[data-theme="humanities"] {
+    --accent: #ff914d; --accent-2: #ff5d8f; --accent-3: #ffb34d;
+    --bg-grad-1: #fff3e6; --bg-grad-2: #ffe9f0;
+  }
+  body[data-theme="math"] {
+    --accent: #5b7cff; --accent-2: #7c5cff; --accent-3: #30a0ff;
+    --bg-grad-1: #eef1ff; --bg-grad-2: #e9f6ff;
+  }
+  body[data-theme="business"] {
+    --accent: #2bb673; --accent-2: #0ea5a0; --accent-3: #6ac46a;
+    --bg-grad-1: #eafff4; --bg-grad-2: #eef9ff;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, var(--bg-grad-1), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, var(--bg-grad-2), transparent 55%),
+      var(--bg);
+    min-height: 100vh;
+    transition: background 0.8s ease;
+  }
+
+  header.hero {
+    text-align: center;
+    padding: 36px 20px 10px;
+  }
+  header.hero h1 {
+    margin: 0;
+    font-size: clamp(28px, 5vw, 44px);
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -0.5px;
+  }
+  header.hero p { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+
+  .theme-pill {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--accent) 16%, white);
+    color: var(--accent-2);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, white);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px 18px 80px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin: 18px 0;
+  }
+
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+
+  .static-text {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  /* Upload zone */
+  .dropzone {
+    border: 2px dashed color-mix(in srgb, var(--accent-2) 40%, #d9d0ea);
+    border-radius: 16px;
+    padding: 34px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.25s;
+    background: color-mix(in srgb, var(--accent) 6%, white);
+  }
+  .dropzone.dragover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, white);
+    transform: translateY(-2px);
+  }
+  .dropzone .big { font-size: 34px; }
+  .dropzone .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .dropzone input { display: none; }
+  .file-chip {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent-3) 14%, white);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  textarea.notes {
+    width: 100%;
+    margin-top: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px;
+    font-family: inherit;
+    font-size: 14px;
+    min-height: 90px;
+    resize: vertical;
+  }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 6px; }
+  button.btn {
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 13px 22px;
+    border-radius: 14px;
+    color: white;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--accent-2) 30%, transparent);
+    transition: 0.2s;
+  }
+  button.btn:hover { transform: translateY(-2px); }
+  button.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+  button.btn.ghost {
+    background: white;
+    color: var(--accent-2);
+    border: 1.5px solid color-mix(in srgb, var(--accent-2) 35%, white);
+    box-shadow: none;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-dot {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .output {
+    margin-top: 12px;
+    height: 340px;
+    overflow-y: auto;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 4%, #fbfaff);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    line-height: 1.6;
+    font-size: 14.5px;
+  }
+  .output.autoheight { height: auto; min-height: 120px; max-height: none; }
+
+  /* thin custom scrollbar */
+  .output::-webkit-scrollbar { width: 7px; }
+  .output::-webkit-scrollbar-track { background: transparent; }
+  .output::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent-2) 40%, #d8cfee);
+    border-radius: 999px;
+  }
+  .output { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent-2) 40%, #d8cfee) transparent; }
+
+  .md-line {
+    display: block;
+    opacity: 0;
+    animation: fadein 0.35s ease forwards;
+  }
+  @keyframes fadein { to { opacity: 1; } }
+
+  .md-line.h1 { font-size: 20px; font-weight: 800; margin: 8px 0 4px; }
+  .md-line.h2 { font-size: 17px; font-weight: 700; margin: 8px 0 4px; }
+  .md-line.h3 { font-size: 15px; font-weight: 700; margin: 6px 0 3px; color: var(--accent-2); }
+  .md-line.li { padding-left: 18px; position: relative; }
+  .md-line.li::before { content: "•"; position: absolute; left: 4px; color: var(--accent); }
+  .md-line.oli { padding-left: 22px; }
+  .md-line.hr { border-top: 1px solid var(--border); height: 0; margin: 10px 0; }
+  .md-line code {
+    background: color-mix(in srgb, var(--accent-2) 12%, white);
+    padding: 1px 6px; border-radius: 6px; font-size: 0.92em;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    animation: blink 1s steps(2) infinite;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2.5px solid color-mix(in srgb, var(--accent-2) 25%, #e7e0f5);
+    border-top-color: var(--accent-2);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .err { color: #d6336c; font-weight: 600; }
+
+  .placeholder { color: var(--muted); font-style: italic; }
+
+  /* flashcards */
+  .fc-hint { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+  .fc-deck { display: flex; flex-direction: column; gap: 14px; }
+  .fc-card {
+    perspective: 1000px;
+    cursor: pointer;
+    outline: none;
+    height: 150px;            /* fixed box so absolutely-positioned faces have height */
+  }
+  .fc-card:focus-visible .fc-inner {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 45%, white);
+    border-radius: 14px;
+  }
+  .fc-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.55s cubic-bezier(.2,.7,.2,1);
+  }
+  .fc-card.flipped .fc-inner { transform: rotateY(180deg); }
+  .fc-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    box-shadow: 0 6px 16px rgba(124, 92, 255, 0.10);
+  }
+  .fc-face::-webkit-scrollbar { width: 6px; }
+  .fc-face::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent-2) 35%, #d8cfee);
+    border-radius: 999px;
+  }
+  .fc-front {
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--accent) 10%, white),
+      color-mix(in srgb, var(--accent-2) 10%, white));
+  }
+  .fc-back {
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--accent-3) 14%, white),
+      color-mix(in srgb, var(--accent-2) 12%, white));
+    transform: rotateY(180deg);
+  }
+  .fc-badge {
+    align-self: flex-start;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: white;
+    color: var(--accent-2);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .fc-text { font-size: 15px; line-height: 1.5; color: var(--ink); }
+  .fc-tip {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* floating study-assistant chat popup */
+  .chat-fab {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 60;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    border-radius: 999px;
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 10px 26px color-mix(in srgb, var(--accent-2) 40%, transparent);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .chat-fab:hover { transform: translateY(-2px); }
+  .chat-fab-label { font-size: 14px; }
+  @media (max-width: 560px) { .chat-fab-label { display: none; } }
+
+  /* one-time "need help?" nudge next to the FAB */
+  .chat-nudge {
+    position: fixed;
+    right: 24px;
+    bottom: 84px;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 10px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 10px 26px rgba(43, 34, 64, 0.18);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    animation: nudge-in 0.35s ease, nudge-bob 2.4s ease-in-out 0.5s infinite;
+  }
+  .chat-nudge.show { display: flex; }
+  .chat-nudge::after {
+    content: "";
+    position: absolute;
+    right: 24px;
+    bottom: -7px;
+    width: 14px;
+    height: 14px;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    transform: rotate(45deg);
+  }
+  .chat-nudge-close {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 2px 4px;
+    border-radius: 6px;
+  }
+  .chat-nudge-close:hover { background: color-mix(in srgb, var(--accent) 12%, white); }
+  @keyframes nudge-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes nudge-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+  @media (max-width: 560px) { .chat-nudge { display: none !important; } }
+
+  .chat-popup {
+    position: fixed;
+    right: 22px;
+    bottom: 88px;
+    z-index: 61;
+    width: min(380px, calc(100vw - 32px));
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(43, 34, 64, 0.28);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    animation: popup-in 0.22s ease;
+  }
+  .chat-popup.open { display: flex; }
+  @keyframes popup-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .chat-popup-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(90deg,
+      color-mix(in srgb, var(--accent) 14%, white),
+      color-mix(in srgb, var(--accent-2) 14%, white));
+    border-bottom: 1px solid var(--border);
+  }
+  .chat-popup-title {
+    font-weight: 800;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .chat-popup-close {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+  .chat-popup-close:hover { background: color-mix(in srgb, var(--accent) 12%, white); }
+  .chat-popup .chat-window {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    max-height: 48vh;
+    min-height: 240px;
+  }
+  .chat-popup .chat-input-row { padding: 12px; margin: 0; border-top: 1px solid var(--border); }
+
+  /* chat */
+  .chat-window {
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    background: color-mix(in srgb, var(--accent) 4%, #fbfaff);
+    max-height: 460px;
+    overflow-y: auto;
+  }
+  .bubble {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    margin: 8px 0;
+    line-height: 1.55;
+    font-size: 14.5px;
+    white-space: normal;
+  }
+  .bubble.bot { background: white; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble.user {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: white; margin-left: auto; border-bottom-right-radius: 4px;
+  }
+  .chat-input-row { display: flex; gap: 10px; margin-top: 12px; }
+  .chat-input-row input {
+    flex: 1;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .history-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+  }
+  .history-item {
+    font-size: 12.5px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-3) 12%, white);
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .history-item button { border: none; background: none; cursor: pointer; color: var(--muted); margin-left: 6px; }
+  .footer-note { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 30px; }
+</style>
+</head>
+<body data-theme="">
+<header class="hero">
+  <h1>📚 StudySnap</h1>
+  <p>Your AI study assistant — summaries, flashcards, quizzes and more from your lecture notes.</p>
+  <div class="theme-pill" id="themePill">Bright theme</div>
+</header>
+
+<div class="container">
+
+  <!-- Widget 1: Lecture Notes (static) -->
+  <section class="card">
+    <h2>📚 Welcome to your Study Assistant!</h2>
+    <div class="static-text">Upload your PDF lecture notes below and instantly get:
+- ✅ A clear 5–7 bullet point summary
+- 🃏 5 flashcards in Q&A format
+- 📝 5 multiple-choice quiz questions
+
+Just upload your file and all three outputs will generate automatically!</div>
+  </section>
+
+  <!-- Widget 2: Document upload -->
+  <section class="card">
+    <h2>📄 Lecture Notes</h2>
+    <p class="subtitle">Upload your lecture notes here — PDF, Word, text, or an image of your notes.</p>
+    <label class="dropzone" id="dropzone">
+      <div class="big">⬆️</div>
+      <div><strong>Drag &amp; drop</strong> your file here, or click to browse</div>
+      <div class="hint">Accepted: PDF, DOC/DOCX, TXT, images (PNG/JPG) — or paste text below</div>
+      <input type="file" id="fileInput" accept="application/pdf,.pdf,.doc,.docx,.txt,.md,.rtf,.csv,image/*" />
+    </label>
+    <div class="file-chip" id="fileChip"></div>
+    <textarea class="notes" id="notesText" placeholder="Optional: paste lecture notes text here if you don't have a PDF..."></textarea>
+
+    <div class="actions">
+      <button class="btn" id="runAllBtn">✨ Run All</button>
+      <button class="btn ghost" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="history-bar" id="historyBar"></div>
+  </section>
+
+  <!-- Widgets 3–7 (two-column grid of text outputs) -->
+  <div class="grid">
+    <!-- Widget 3: Estimated Study Time -->
+    <section class="card" data-widget="estimated_study_time">
+      <div class="panel-head">
+        <h2>⏱️ Estimated Study Time</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 4: Bullet Point Summary -->
+    <section class="card" data-widget="bullet_point_summary">
+      <div class="panel-head">
+        <h2>📝 Bullet Point Summary</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 5: Key Terms Glossary -->
+    <section class="card" data-widget="key_terms_glossary">
+      <div class="panel-head">
+        <h2>📌 Key Terms Glossary</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 6: Real World Examples -->
+    <section class="card" data-widget="real_world_examples">
+      <div class="panel-head">
+        <h2>💡 Real World Examples</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 7: Difficulty Level Tag -->
+    <section class="card" data-widget="difficulty_level_tag">
+      <div class="panel-head">
+        <h2>🎚️ Difficulty Level Tag</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+
+    <!-- Widget 8: Flashcards -->
+    <section class="card" data-widget="flashcards">
+      <div class="panel-head">
+        <h2>🃏 Flashcards</h2>
+        <span class="status-dot" data-status></span>
+      </div>
+      <div class="output" data-output><span class="placeholder">Upload notes and run to generate.</span></div>
+    </section>
+  </div>
+
+  <!-- Widget 9: Quiz Instructions (static) -->
+  <section class="card">
+    <h2>🎯 Ready to test yourself?</h2>
+    <div class="static-text">Type <strong>start</strong> in the chat below to begin the quiz. The AI will present one question at a time — answer with A, B, C, or D and it will reveal if you're correct!</div>
+  </section>
+
+  <!-- Widget 10: Interactive Quiz (chat) -->
+  <section class="card" data-widget="interactive_quiz">
+    <div class="panel-head">
+      <h2>🧠 Interactive Quiz</h2>
+      <span class="status-dot" data-status></span>
+    </div>
+    <div class="chat-window" id="chatWindow"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="Type 'start' to begin, or A / B / C / D to answer..." />
+      <button class="btn" id="chatSend">Send</button>
+    </div>
+  </section>
+
+  <div class="footer-note">StudySnap · Powered by Amazon Bedrock (Claude Haiku 4.5)</div>
+</div>
+
+<!-- Study Assistant chat — floating popup -->
+<div data-widget="study_chat">
+  <div class="chat-nudge" id="chatNudge" aria-hidden="true">
+    <span>Need help? Ask me 👋</span>
+    <button class="chat-nudge-close" id="chatNudgeClose" aria-label="Dismiss">✕</button>
+  </div>
+  <button class="chat-fab" id="chatFab" aria-label="Open the Study Assistant chat">
+    💬<span class="chat-fab-label">Ask the Assistant</span>
+  </button>
+
+  <div class="chat-popup" id="chatPopup" role="dialog" aria-label="Study Assistant chat" aria-hidden="true">
+    <div class="chat-popup-head">
+      <div class="chat-popup-title">
+        💬 Study Assistant
+        <span class="status-dot" data-status></span>
+      </div>
+      <button class="chat-popup-close" id="chatPopupClose" aria-label="Close chat">✕</button>
+    </div>
+    <div class="chat-window" id="assistWindow"></div>
+    <div class="chat-input-row">
+      <input type="text" id="assistInput" placeholder="Ask anything about your notes..." />
+      <button class="btn" id="assistSend">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   API configuration
+   ============================================================ */
+// NOTE: this file is served as public static JS from S3, so API_KEY is visible
+// in View Source. Only use an API Gateway usage-plan key here — never an AWS/Bedrock secret.
+// The value below is replaced with the real API Gateway base by GitHub Actions at deploy time.
+const API_URL = 'API_BASE_URL';
+const API_KEY = 'tbchgw8392843yfbndjs3r9';
+
+const STREAM_URLS = {
+  estimated_study_time: API_URL + '/estimated-study-time',
+  bullet_point_summary: API_URL + '/bullet-point-summary',
+  key_terms_glossary:   API_URL + '/key-terms-glossary',
+  real_world_examples:  API_URL + '/real-world-examples',
+  difficulty_level_tag: API_URL + '/difficulty-level-tag',
+  flashcards:           API_URL + '/flashcards',
+  interactive_quiz:     API_URL + '/interactive-quiz',
+  study_chat:           API_URL + '/study-chat',
+};
+
+const STREAM_WIDGETS = [
+  'estimated_study_time',
+  'bullet_point_summary',
+  'key_terms_glossary',
+  'real_world_examples',
+  'difficulty_level_tag',
+  'flashcards',
+];
+
+/* ============================================================
+   DEMO MODE — active only before deployment, when the URL
+   placeholders have NOT been replaced by GitHub Actions.
+   Lets you preview the UI locally with sample content.
+   Automatically disables itself once real URLs are injected.
+   ============================================================ */
+// Demo mode is on until GitHub Actions injects a real https API base URL.
+// (Before deploy, API_URL is the literal placeholder, not an https endpoint.)
+const DEMO = !/^https:\/\//.test(String(API_URL));
+
+const DEMO_TEXT = {
+  estimated_study_time:
+    "⏱️ Quick Skim: 10 minutes\n📖 Active Reading: 35 minutes\n🃏 Flashcard Review: 15 minutes\n📝 Quiz Practice: 20 minutes\n⏳ Total Estimated Time: 80 minutes\n\nThe material is moderately dense with several interlinked concepts, so active reading and spaced flashcard review will pay off most.",
+  bullet_point_summary:
+    "- Databases organise data so it can be stored, retrieved and updated efficiently\n- A **DBMS** sits between users and the raw data, enforcing structure and rules\n- Data **redundancy** wastes space and can cause inconsistencies\n- **Normalisation** reduces redundancy by splitting data into related tables\n- Keys (primary and foreign) link tables and keep relationships valid\n- Good design improves integrity, security and query performance",
+  key_terms_glossary:
+    "📌 DBMS\nDefinition: Software that manages how data is stored and accessed.\nExample: MySQL serving a shopping site's product catalogue.\n\n📌 Primary Key\nDefinition: A column whose value uniquely identifies each row.\nExample: a student_id that no two students share.\n\n📌 Normalisation\nDefinition: Organising tables to cut repetition.\nExample: storing a customer's address once, not on every order.",
+  real_world_examples:
+    "💡 Redundancy\nWhat it means: the same fact stored in several places.\nReal-world example: writing a friend's phone number in five notebooks — change it once and the others are wrong.\n\n💡 Foreign Key\nWhat it means: a reference from one table to another.\nReal-world example: an order slip that points to a customer card instead of recopying their details.",
+  difficulty_level_tag:
+    "🟢 EASY — What a database is: an everyday idea most students already grasp.\n🟡 MEDIUM — Normalisation: needs practice to apply to real tables.\n🟡 MEDIUM — Keys and relationships: straightforward once you see examples.\n🔴 HARD — Anomalies (update/insert/delete): abstract and easy to confuse.\n🔴 HARD — Choosing a schema: requires judgement, not just rules.\n\nFocus most of your time on anomalies and schema design — they carry the most marks and are the trickiest.",
+};
+
+const DEMO_FLASHCARDS = JSON.stringify([
+  { question: "What does DBMS stand for, and what does it do?", answer: "Database Management System — software that stores, retrieves and manages data while enforcing structure and rules." },
+  { question: "Why is data redundancy a problem?", answer: "It wastes storage and can lead to inconsistent data when one copy is updated but others are not." },
+  { question: "What is normalisation?", answer: "Organising data into related tables to reduce redundancy and improve integrity." },
+  { question: "What is a primary key?", answer: "A column (or set of columns) whose value uniquely identifies each row in a table." },
+  { question: "How does a foreign key help?", answer: "It links one table to another, keeping relationships between records valid." },
+]);
+
+if (DEMO) {
+  window.addEventListener('DOMContentLoaded', () => {
+    const pill = document.getElementById('themePill');
+    if (pill) {
+      pill.textContent = '🧪 Demo preview · sample content (deploy to use real AI)';
+      pill.style.background = '#fff3cd';
+      pill.style.color = '#8a6d00';
+      pill.style.borderColor = '#ffe38a';
+    }
+  });
+}
+
+function demoReply(widget, userMsg) {
+  if (widget === 'flashcards') return DEMO_FLASHCARDS;
+  if (widget === 'interactive_quiz') {
+    return "**Question 1 of 5**\n\nWhat does a DBMS primarily manage?\n\nA) Network traffic\nB) How data is stored and accessed\nC) Screen rendering\nD) Email delivery\n\nReply with A, B, C or D.";
+  }
+  if (widget === 'study_chat') {
+    return "Sure! 👋 In **demo mode** I can't reach the AI yet, but here's the idea: once deployed, I'll answer questions about your uploaded notes — explaining concepts, giving examples, or quizzing you. Try asking me again after deployment!";
+  }
+  return DEMO_TEXT[widget] || "Demo content for this panel.";
+}
+
+/* ============================================================
+   State: uploaded file + notes
+   ============================================================ */
+const state = {
+  fileData: null,   // raw base64 (no data: prefix)
+  fileMime: null,
+  fileName: null,
+};
+
+/* ============================================================
+   File upload handling
+   ============================================================ */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileChip = document.getElementById('fileChip');
+const notesText = document.getElementById('notesText');
+
+['dragenter', 'dragover'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('dragover'); })
+);
+['dragleave', 'drop'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('dragover'); })
+);
+dropzone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (f) handleFile(f);
+});
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const result = reader.result || '';
+    const comma = result.indexOf(',');
+    state.fileData = comma >= 0 ? result.slice(comma + 1) : result;
+    state.fileMime = file.type || 'application/pdf';
+    state.fileName = file.name;
+    fileChip.style.display = 'block';
+    fileChip.textContent = '📎 ' + file.name;
+    applyThemeFromName(file.name);
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ============================================================
+   Theme adaptation after upload (based on filename keywords)
+   ============================================================ */
+function applyThemeFromName(name) {
+  // Theme is locked to the original bright palette — no colour change on upload.
+  document.body.setAttribute('data-theme', '');
+}
+
+/* ============================================================
+   Request body builder
+   ============================================================ */
+function buildBody(extra) {
+  const body = { text: notesText.value || '' };
+  if (state.fileData) {
+    body.file_data = state.fileData;
+    body.file_mime = state.fileMime;
+    body.file_name = state.fileName || '';
+  }
+  return Object.assign(body, extra || {});
+}
+
+function hasInput() {
+  if (DEMO) return true;  // preview without needing an upload
+  return !!(state.fileData || (notesText.value && notesText.value.trim()));
+}
+
+/* ============================================================
+   Per-panel status helpers
+   ============================================================ */
+function panel(widget) { return document.querySelector(`[data-widget="${widget}"]`); }
+function outputEl(widget) { return panel(widget).querySelector('[data-output]'); }
+function statusEl(widget) { return panel(widget).querySelector('[data-status]'); }
+
+function setLoading(widget) {
+  statusEl(widget).innerHTML = '<span class="spinner"></span> generating…';
+  outputEl(widget).innerHTML = '';
+}
+function setDone(widget) { statusEl(widget).textContent = '✅ done'; }
+function setError(widget, msg) {
+  statusEl(widget).textContent = '⚠️ error';
+  outputEl(widget).innerHTML = `<span class="err">Failed: ${escapeHtml(msg)}</span>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ============================================================
+   Inline markdown: bold, italic, code
+   ============================================================ */
+function inlineMd(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+  return s;
+}
+
+/* Render a single completed markdown line as an animated span */
+function renderMdLine(container, rawLine) {
+  const line = rawLine.replace(/\s+$/, '');
+  const span = document.createElement('span');
+  span.className = 'md-line';
+
+  if (/^\s*---\s*$/.test(line)) {
+    span.classList.add('hr');
+  } else if (/^###\s+/.test(line)) {
+    span.classList.add('h3'); span.innerHTML = inlineMd(line.replace(/^###\s+/, ''));
+  } else if (/^##\s+/.test(line)) {
+    span.classList.add('h2'); span.innerHTML = inlineMd(line.replace(/^##\s+/, ''));
+  } else if (/^#\s+/.test(line)) {
+    span.classList.add('h1'); span.innerHTML = inlineMd(line.replace(/^#\s+/, ''));
+  } else if (/^\s*[-*]\s+/.test(line)) {
+    span.classList.add('li'); span.innerHTML = inlineMd(line.replace(/^\s*[-*]\s+/, ''));
+  } else if (/^\s*\d+\.\s+/.test(line)) {
+    span.classList.add('oli'); span.innerHTML = inlineMd(line);
+  } else {
+    span.innerHTML = inlineMd(line) || '&nbsp;';
+  }
+  container.appendChild(span);
+}
+
+/* ============================================================
+   Buffered fetch + progressive (typewriter) per-line render
+   The API returns the full text as JSON { text }. We reveal it
+   line-by-line with a blinking cursor so it still feels live.
+   ============================================================ */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function revealLines(out, cursor, fullText) {
+  const lines = String(fullText).split('\n');
+  // pace reveal so short results aren't instant and long ones aren't slow
+  const delay = Math.max(8, Math.min(60, Math.round(900 / Math.max(lines.length, 1))));
+  for (const line of lines) {
+    renderMdLineBeforeCursor(out, cursor, line);
+    out.scrollTop = out.scrollHeight;
+    await sleep(delay);
+  }
+}
+
+async function streamToPanel(widget, body) {
+  const url = STREAM_URLS[widget];
+  setLoading(widget);
+  const out = outputEl(widget);
+
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  cursor.textContent = '▋';
+  out.appendChild(cursor);
+
+  try {
+    let data;
+    if (DEMO) {
+      await sleep(400);
+      data = { text: demoReply(widget) };
+    } else {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify(body),
+      });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      if (data.error) throw new Error(data.error);
+    }
+
+    cursor.remove();
+
+    if (widget === 'flashcards') {
+      renderFlashcards(out, data.text || '');
+    } else {
+      out.appendChild(cursor);
+      await revealLines(out, cursor, data.text || '');
+      cursor.remove();
+    }
+
+    setDone(widget);
+    saveHistory();
+  } catch (err) {
+    cursor.remove();
+    setError(widget, err.message || String(err));
+  }
+}
+
+function renderMdLineBeforeCursor(container, cursor, rawLine) {
+  const tmp = document.createElement('div');
+  renderMdLine(tmp, rawLine);
+  while (tmp.firstChild) container.insertBefore(tmp.firstChild, cursor);
+}
+
+/* ============================================================
+   Flashcards: parse the model's text into Q/A pairs and render
+   click-to-flip cards. Falls back to raw text if parsing fails.
+   ============================================================ */
+function parseFlashcards(text) {
+  if (!text) return [];
+
+  // Strategy A: split into per-card blocks (FLASHCARD n, "Card n", or ━ rule lines),
+  // then pull a question and an answer out of each block with tolerant markers.
+  let blocks = text
+    .split(/(?=(?:🃏\s*)?(?:FLASHCARD|CARD)\s*#?\s*\d+)/i)
+    .filter(b => /(FLASHCARD|CARD)\s*#?\s*\d+/i.test(b));
+
+  // If there were no "FLASHCARD n" headers, try splitting on the ━ rule separators.
+  if (blocks.length < 2) {
+    const bySep = text.split(/[━─]{5,}/).map(s => s.trim()).filter(Boolean);
+    if (bySep.length >= 2) blocks = bySep;
+  }
+
+  const source = blocks.length >= 1 ? blocks : [text];
+  const cards = [];
+
+  for (const block of source) {
+    const pair = extractQA(block);
+    if (pair) cards.push(pair);
+  }
+
+  // Strategy B (fallback): no block had a clear Q/A — walk the whole text pairing
+  // "Q" lines with the following "A" lines.
+  if (cards.length < 2) {
+    const alt = extractQAPairsLineByLine(text);
+    if (alt.length > cards.length) return alt;
+  }
+
+  return cards;
+}
+
+// Pull one { q, a } from a block using several possible label styles.
+function extractQA(block) {
+  // Accept: QUESTION:, Q:, Q1:, **Question**, Front:, etc. and the answer counterparts.
+  const qLabel = /(?:^|\n)\s*\**\s*(?:❓\s*)?(?:QUESTION|QUES|Q|FRONT)\s*\d*\s*\**\s*[:\-)]\s*/i;
+  const aLabel = /(?:^|\n)\s*\**\s*(?:💡\s*)?(?:ANSWER|ANS|A|BACK)\s*\d*\s*\**\s*[:\-)]\s*/i;
+
+  const qIdx = block.search(qLabel);
+  const aIdx = block.search(aLabel);
+  if (qIdx === -1 || aIdx === -1 || aIdx <= qIdx) return null;
+
+  const afterQ = block.slice(qIdx).replace(qLabel, '');
+  // question is everything between the Q label and the A label
+  const aInAfterQ = afterQ.search(aLabel);
+  if (aInAfterQ === -1) return null;
+  const qRaw = afterQ.slice(0, aInAfterQ);
+  const aRaw = afterQ.slice(aInAfterQ).replace(aLabel, '');
+
+  const q = cleanCardText(qRaw);
+  const a = cleanCardText(aRaw);
+  if (q && a) return { q, a };
+  return null;
+}
+
+// Fallback: pair each Q-ish line with the text up to the next Q-ish line's answer.
+function extractQAPairsLineByLine(text) {
+  const lines = String(text).split('\n');
+  const cards = [];
+  let cur = null;
+  let mode = null; // 'q' | 'a'
+
+  const isQ = l => /^\s*\**\s*(?:❓\s*)?(?:QUESTION|QUES|Q|FRONT)\s*\d*\s*\**\s*[:\-)]/i.test(l);
+  const isA = l => /^\s*\**\s*(?:💡\s*)?(?:ANSWER|ANS|A|BACK)\s*\d*\s*\**\s*[:\-)]/i.test(l);
+  const strip = l => l.replace(/^\s*\**\s*(?:❓|💡)?\s*(?:QUESTION|QUES|Q|FRONT|ANSWER|ANS|A|BACK)\s*\d*\s*\**\s*[:\-)]\s*/i, '');
+
+  for (const line of lines) {
+    if (isQ(line)) {
+      if (cur && cur.q && cur.a) cards.push({ q: cleanCardText(cur.q), a: cleanCardText(cur.a) });
+      cur = { q: strip(line), a: '' };
+      mode = 'q';
+    } else if (isA(line) && cur) {
+      cur.a = strip(line);
+      mode = 'a';
+    } else if (cur && mode) {
+      cur[mode] += '\n' + line;
+    }
+  }
+  if (cur && cur.q && cur.a) cards.push({ q: cleanCardText(cur.q), a: cleanCardText(cur.a) });
+  return cards.filter(c => c.q && c.a);
+}
+
+function cleanCardText(s) {
+  return String(s)
+    .replace(/(?:🃏\s*)?(?:FLASHCARD|CARD)\s*#?\s*\d+(?:\s*of\s*\d+)?/gi, '') // card headers
+    .replace(/[━─]{3,}/g, '')               // rule lines
+    .replace(/·(?:\s*·)+/g, '')             // dotted reveal divider
+    .replace(/⬇️.*$/gim, '')                // "think first" hint line
+    .replace(/HOW TO USE:.*$/gim, '')       // usage hint
+    .replace(/Think of your answer.*$/gim, '')
+    .replace(/then (?:scroll down|reveal).*$/gim, '')
+    .replace(/^[\s,.\-–—]+|[\s]+$/g, '')    // leading stray punctuation / trailing ws
+    .trim();
+}
+
+function parseFlashcardsJson(text) {
+  // The backend asks the model for a JSON array of {question, answer}.
+  // Tolerate stray code fences or text around the array.
+  if (!text) return [];
+  let t = String(text).trim().replace(/^```(?:json)?/i, '').replace(/```$/,'').trim();
+  const start = t.indexOf('[');
+  const end = t.lastIndexOf(']');
+  if (start === -1 || end === -1 || end <= start) return [];
+  try {
+    const arr = JSON.parse(t.slice(start, end + 1));
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map(o => ({
+        q: String((o && (o.question ?? o.q ?? o.front)) || '').trim(),
+        a: String((o && (o.answer ?? o.a ?? o.back)) || '').trim(),
+      }))
+      .filter(c => c.q && c.a);
+  } catch (e) {
+    return [];
+  }
+}
+
+function renderFlashcards(out, text) {
+  // Prefer structured JSON from the backend; fall back to parsing decorated text.
+  let cards = parseFlashcardsJson(text);
+  if (cards.length < 2) cards = parseFlashcards(text);
+
+  // Fallback: couldn't parse cleanly -> show the raw text as before.
+  if (cards.length < 2) {
+    out.innerHTML = '';
+    const pre = document.createElement('div');
+    renderMdLineBeforeCursorless(pre, text);
+    out.appendChild(pre);
+    return;
+  }
+
+  out.innerHTML = '';
+  const hint = document.createElement('div');
+  hint.className = 'fc-hint';
+  hint.textContent = '🃏 Tap a card to flip it. ' + cards.length + ' cards.';
+  out.appendChild(hint);
+
+  const deck = document.createElement('div');
+  deck.className = 'fc-deck';
+
+  cards.forEach((card, i) => {
+    const el = document.createElement('div');
+    el.className = 'fc-card';
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', 'Flashcard ' + (i + 1) + ', tap to flip');
+    el.innerHTML = `
+      <div class="fc-inner">
+        <div class="fc-face fc-front">
+          <div class="fc-badge">🂠 Front · Card ${i + 1}</div>
+          <div class="fc-text">${inlineMd(card.q).replace(/\n/g, '<br>')}</div>
+          <div class="fc-tip">tap to flip to the back</div>
+        </div>
+        <div class="fc-face fc-back">
+          <div class="fc-badge">🂡 Back · Card ${i + 1}</div>
+          <div class="fc-text">${inlineMd(card.a).replace(/\n/g, '<br>')}</div>
+          <div class="fc-tip">tap to flip to the front</div>
+        </div>
+      </div>`;
+    const flip = () => el.classList.toggle('flipped');
+    el.addEventListener('click', flip);
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+    });
+    deck.appendChild(el);
+  });
+
+  out.appendChild(deck);
+}
+
+/* Render markdown text (no cursor) — used by the flashcard raw-text fallback */
+function renderMdLineBeforeCursorless(container, text) {
+  String(text).split('\n').forEach(line => renderMdLine(container, line));
+}
+
+/* Render markdown into any container (used by chat bubbles) */
+function renderMarkdownInto(container, text) {
+  String(text).split('\n').forEach(line => renderMdLine(container, line));
+}
+
+/* Re-attach flip handlers after restoring flashcards from history (innerHTML drops listeners) */
+function rebindFlashcardFlips() {
+  const out = outputEl('flashcards');
+  if (!out) return;
+  out.querySelectorAll('.fc-card').forEach(el => {
+    const flip = () => el.classList.toggle('flipped');
+    el.addEventListener('click', flip);
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+    });
+  });
+}
+
+/* ============================================================
+   Run All
+   ============================================================ */
+const runAllBtn = document.getElementById('runAllBtn');
+runAllBtn.addEventListener('click', () => {
+  if (!hasInput()) {
+    alert('Please upload a PDF or paste some lecture notes first.');
+    return;
+  }
+  applyThemeFromName(state.fileName || 'notes');
+  const body = buildBody();
+  STREAM_WIDGETS.forEach(w => streamToPanel(w, body));   // fire simultaneously
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  state.fileData = state.fileMime = state.fileName = null;
+  fileChip.style.display = 'none';
+  notesText.value = '';
+  fileInput.value = '';
+  document.body.setAttribute('data-theme', '');
+  document.getElementById('themePill').textContent = 'Bright theme';
+  STREAM_WIDGETS.forEach(w => {
+    outputEl(w).innerHTML = '<span class="placeholder">Upload notes and run to generate.</span>';
+    statusEl(w).textContent = '';
+  });
+});
+
+/* ============================================================
+   Interactive Quiz chat
+   ============================================================ */
+const chatWindow = document.getElementById('chatWindow');
+const chatInput = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+const quizStatus = () => statusEl('interactive_quiz');
+
+let quizHistory = [];   // [{role, content}]
+
+addBotBubble(`👋 Welcome to the Quiz! I'll test your understanding of the lecture notes.
+
+When you're ready, type start and I'll present the first question. Answer with A, B, C, or D — I'll tell you if you're right and keep track of your score!
+
+Good luck! 🍀`);
+
+function addUserBubble(text) {
+  const b = document.createElement('div');
+  b.className = 'bubble user';
+  b.textContent = text;
+  chatWindow.appendChild(b);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+function addBotBubble(text, asMarkdown) {
+  const b = document.createElement('div');
+  b.className = 'bubble bot';
+  if (asMarkdown && text) {
+    renderMarkdownInto(b, text);
+  } else {
+    b.textContent = text;
+  }
+  chatWindow.appendChild(b);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+  return b;
+}
+
+async function sendChat() {
+  const msg = chatInput.value.trim();
+  if (!msg) return;
+  if (!hasInput()) {
+    alert('Please upload a PDF or paste lecture notes before starting the quiz.');
+    return;
+  }
+  chatInput.value = '';
+  addUserBubble(msg);
+
+  const bubble = addBotBubble('');
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  cursor.textContent = '▋';
+  bubble.appendChild(cursor);
+
+  quizStatus().innerHTML = '<span class="spinner"></span> thinking…';
+
+  const body = buildBody({
+    history: quizHistory.slice(),
+    message: msg,
+    topic: notesText.value || state.fileName || '',
+    level: 'medium',
+  });
+
+  let full = '';
+  try {
+    let data;
+    if (DEMO) {
+      await sleep(400);
+      data = { text: demoReply('interactive_quiz', msg) };
+    } else {
+      const res = await fetch(STREAM_URLS.interactive_quiz, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify(body),
+      });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      if (data.error) throw new Error(data.error);
+    }
+
+    full = data.text || '';
+
+    // typewriter reveal (plain) so it feels live
+    const plain = document.createElement('span');
+    bubble.insertBefore(plain, cursor);
+    const delay = Math.max(4, Math.min(24, Math.round(1200 / Math.max(full.length, 1))));
+    for (let i = 0; i < full.length; i++) {
+      plain.appendChild(document.createTextNode(full[i]));
+      if (i % 3 === 0) { chatWindow.scrollTop = chatWindow.scrollHeight; await sleep(delay); }
+    }
+    cursor.remove();
+
+    // re-render the finished reply as formatted markdown (line breaks, bold, lists,
+    // A/B/C/D options) so the explanation is arranged properly instead of one blob
+    bubble.innerHTML = '';
+    renderMarkdownInto(bubble, full);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+
+    quizStatus().textContent = '✅';
+
+    // accumulate conversation history
+    quizHistory.push({ role: 'user', content: msg });
+    quizHistory.push({ role: 'assistant', content: full });
+    saveHistory();
+  } catch (err) {
+    cursor.remove();
+    bubble.innerHTML = `<span class="err">Failed: ${escapeHtml(err.message || String(err))}</span>`;
+    quizStatus().textContent = '⚠️';
+  }
+}
+
+chatSend.addEventListener('click', sendChat);
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+/* ============================================================
+   Study Assistant chatbox (general Q&A about the notes)
+   ============================================================ */
+const assistWindow = document.getElementById('assistWindow');
+const assistInput = document.getElementById('assistInput');
+const assistSend = document.getElementById('assistSend');
+const assistStatus = () => statusEl('study_chat');
+
+let assistHistory = [];   // [{role, content}]
+
+function addAssistBubble(text, who, asMarkdown) {
+  const b = document.createElement('div');
+  b.className = 'bubble ' + (who === 'user' ? 'user' : 'bot');
+  if (asMarkdown && text) renderMarkdownInto(b, text);
+  else b.textContent = text;
+  assistWindow.appendChild(b);
+  assistWindow.scrollTop = assistWindow.scrollHeight;
+  return b;
+}
+
+addAssistBubble("Hi! 👋 Upload your notes, then ask me anything about them — I can explain tricky concepts, give examples, or quiz you informally.", 'bot');
+
+async function sendAssist() {
+  const msg = assistInput.value.trim();
+  if (!msg) return;
+  if (!hasInput()) {
+    alert('Please upload a file or paste some notes first so I have something to work with.');
+    return;
+  }
+  assistInput.value = '';
+  addAssistBubble(msg, 'user');
+
+  const bubble = addAssistBubble('', 'bot');
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  cursor.textContent = '▋';
+  bubble.appendChild(cursor);
+
+  assistStatus().innerHTML = '<span class="spinner"></span> thinking…';
+
+  const body = buildBody({
+    history: assistHistory.slice(),
+    message: msg,
+  });
+
+  let full = '';
+  try {
+    let data;
+    if (DEMO) {
+      await sleep(400);
+      data = { text: demoReply('study_chat', msg) };
+    } else {
+      const res = await fetch(STREAM_URLS.study_chat, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify(body),
+      });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      if (data.error) throw new Error(data.error);
+    }
+
+    full = data.text || '';
+
+    const plain = document.createElement('span');
+    bubble.insertBefore(plain, cursor);
+    const delay = Math.max(4, Math.min(24, Math.round(1200 / Math.max(full.length, 1))));
+    for (let i = 0; i < full.length; i++) {
+      plain.appendChild(document.createTextNode(full[i]));
+      if (i % 3 === 0) { assistWindow.scrollTop = assistWindow.scrollHeight; await sleep(delay); }
+    }
+    cursor.remove();
+
+    bubble.innerHTML = '';
+    renderMarkdownInto(bubble, full);
+    assistWindow.scrollTop = assistWindow.scrollHeight;
+
+    assistStatus().textContent = '✅';
+    assistHistory.push({ role: 'user', content: msg });
+    assistHistory.push({ role: 'assistant', content: full });
+    saveHistory();
+  } catch (err) {
+    cursor.remove();
+    bubble.innerHTML = `<span class="err">Failed: ${escapeHtml(err.message || String(err))}</span>`;
+    assistStatus().textContent = '⚠️';
+  }
+}
+
+assistSend.addEventListener('click', sendAssist);
+assistInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendAssist(); });
+
+/* popup open/close */
+const chatFab = document.getElementById('chatFab');
+const chatPopup = document.getElementById('chatPopup');
+const chatPopupClose = document.getElementById('chatPopupClose');
+const chatNudge = document.getElementById('chatNudge');
+const chatNudgeClose = document.getElementById('chatNudgeClose');
+
+const NUDGE_KEY = 'studysnap_nudge_seen';
+
+function hideNudge(remember) {
+  chatNudge.classList.remove('show');
+  chatNudge.setAttribute('aria-hidden', 'true');
+  if (remember) { try { localStorage.setItem(NUDGE_KEY, '1'); } catch (e) {} }
+}
+
+function maybeShowNudge() {
+  let seen = false;
+  try { seen = localStorage.getItem(NUDGE_KEY) === '1'; } catch (e) {}
+  if (seen) return;
+  // show after a short delay so it feels like a gentle prompt, not a popup on load
+  setTimeout(() => {
+    if (!chatPopup.classList.contains('open')) {
+      chatNudge.classList.add('show');
+      chatNudge.setAttribute('aria-hidden', 'false');
+    }
+  }, 3500);
+}
+
+function openChatPopup() {
+  hideNudge(true);
+  chatPopup.classList.add('open');
+  chatPopup.setAttribute('aria-hidden', 'false');
+  chatFab.style.display = 'none';
+  setTimeout(() => assistInput.focus(), 50);
+}
+function closeChatPopup() {
+  chatPopup.classList.remove('open');
+  chatPopup.setAttribute('aria-hidden', 'true');
+  chatFab.style.display = 'flex';
+}
+chatFab.addEventListener('click', openChatPopup);
+chatPopupClose.addEventListener('click', closeChatPopup);
+chatNudge.addEventListener('click', openChatPopup);
+chatNudgeClose.addEventListener('click', e => { e.stopPropagation(); hideNudge(true); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && chatPopup.classList.contains('open')) closeChatPopup();
+});
+
+maybeShowNudge();
+
+/* ============================================================
+   History (localStorage)
+   ============================================================ */
+const HISTORY_KEY = 'studysnap_history';
+const historyBar = document.getElementById('historyBar');
+
+function saveHistory() {
+  try {
+    const snapshot = {
+      id: Date.now(),
+      name: state.fileName || (notesText.value ? notesText.value.slice(0, 40) + '…' : 'Session'),
+      theme: document.body.getAttribute('data-theme') || '',
+      notes: notesText.value || '',
+      outputs: {},
+      quiz: quizHistory.slice(),
+      assist: assistHistory.slice(),
+      ts: new Date().toLocaleString(),
+    };
+    STREAM_WIDGETS.forEach(w => { snapshot.outputs[w] = outputEl(w).innerHTML; });
+
+    const all = loadHistoryList();
+    // replace same-session entry if the last one is very recent
+    const existingIdx = all.findIndex(h => h.name === snapshot.name);
+    if (existingIdx >= 0) all.splice(existingIdx, 1);
+    all.unshift(snapshot);
+    while (all.length > 8) all.pop();
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(all));
+    renderHistoryBar();
+  } catch (e) { /* storage may be unavailable */ }
+}
+
+function loadHistoryList() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function renderHistoryBar() {
+  const all = loadHistoryList();
+  historyBar.innerHTML = all.length ? '<span style="font-size:12.5px;color:var(--muted);align-self:center">🕘 History:</span>' : '';
+  all.forEach(h => {
+    const chip = document.createElement('span');
+    chip.className = 'history-item';
+    chip.textContent = h.name;
+    chip.title = 'Restore session from ' + h.ts;
+    chip.addEventListener('click', () => restoreHistory(h.id));
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.addEventListener('click', e => { e.stopPropagation(); deleteHistory(h.id); });
+    chip.appendChild(del);
+    historyBar.appendChild(chip);
+  });
+}
+
+function restoreHistory(id) {
+  const h = loadHistoryList().find(x => x.id === id);
+  if (!h) return;
+  notesText.value = h.notes || '';
+  document.body.setAttribute('data-theme', '');
+  Object.keys(h.outputs || {}).forEach(w => {
+    const el = outputEl(w);
+    if (el) { el.innerHTML = h.outputs[w]; statusEl(w).textContent = '🕘 restored'; }
+  });
+  rebindFlashcardFlips();
+  quizHistory = (h.quiz || []).slice();
+  chatWindow.innerHTML = '';
+  if (!quizHistory.length) {
+    addBotBubble('Restored session. Type start to run the quiz again.');
+  } else {
+    quizHistory.forEach(m => m.role === 'user' ? addUserBubble(m.content) : addBotBubble(m.content, true));
+  }
+
+  assistHistory = (h.assist || []).slice();
+  assistWindow.innerHTML = '';
+  if (!assistHistory.length) {
+    addAssistBubble('Restored session. Ask me anything about these notes.', 'bot');
+  } else {
+    assistHistory.forEach(m => addAssistBubble(m.content, m.role === 'user' ? 'user' : 'bot', m.role !== 'user'));
+  }
+}
+
+function deleteHistory(id) {
+  const all = loadHistoryList().filter(x => x.id !== id);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(all));
+  renderHistoryBar();
+}
+
+renderHistoryBar();
+</script>
+</body>
+</html>

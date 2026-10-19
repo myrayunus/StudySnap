@@ -1,0 +1,311 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: StudySnap - AI study assistant (7 text Lambdas + 1 image Lambda behind API Gateway, S3 site)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 60
+    MemorySize: 256
+    Handler: app.handler
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # IAM role shared by all functions
+  # ---------------------------------------------------------------------------
+  AppBedrockRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: StudySnapAppBedrockRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockInvokeAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub arn:aws:bedrock:ap-southeast-5:${AWS::AccountId}:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:ap-southeast-5::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:*:*:inference-profile/*anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                  - arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+
+  # ---------------------------------------------------------------------------
+  # Single API Gateway for every widget
+  # ---------------------------------------------------------------------------
+  AppApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,x-api-key'"
+        AllowOrigin: "'*'"
+
+  # API key + usage plan — endpoints require the x-api-key header.
+  # AppApi.Stage is the implicit stage ref SAM exposes for AWS::Serverless::Api,
+  # so the usage plan binds to the deployed stage without guessing its logical id.
+  AppApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: StudySnapApiKey
+      Enabled: true
+      Value: tbchgw8392843yfbndjs3r9
+
+  AppUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: StudySnapUsagePlan
+      ApiStages:
+        - ApiId: !Ref AppApi
+          Stage: !Ref AppApi.Stage
+      Throttle:
+        BurstLimit: 20
+        RateLimit: 10
+      Quota:
+        Limit: 5000
+        Period: DAY
+
+  AppUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref AppApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref AppUsagePlan
+
+  # ---------------------------------------------------------------------------
+  # Text Lambdas (buffered, one API path each)
+  # ---------------------------------------------------------------------------
+  EstimatedStudyTimeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/estimated_study_time/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /estimated-study-time
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  BulletPointSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/bullet_point_summary/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /bullet-point-summary
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  KeyTermsGlossaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/key_terms_glossary/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /key-terms-glossary
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  RealWorldExamplesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/real_world_examples/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /real-world-examples
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  DifficultyLevelTagFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/difficulty_level_tag/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /difficulty-level-tag
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  FlashcardsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/flashcards/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /flashcards
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  InteractiveQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/interactive_quiz/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /interactive-quiz
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  StudyChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/study_chat/
+      Role: !GetAtt AppBedrockRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppApi
+            Path: /study-chat
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  # ---------------------------------------------------------------------------
+  # S3 static website hosting
+  # ---------------------------------------------------------------------------
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+
+  # ---------------------------------------------------------------------------
+  # CloudFront distribution — gives the site an HTTPS URL + CDN caching.
+  # Origin is the S3 *website* endpoint (custom origin), so the public bucket
+  # and website hosting above stay exactly as they are.
+  # ---------------------------------------------------------------------------
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: StudySnap frontend
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_All
+        Origins:
+          - Id: S3WebsiteOrigin
+            # S3 website endpoints are HTTP-only, so CloudFront must talk to it over HTTP.
+            DomainName: !Select [2, !Split ["/", !GetAtt FrontendBucket.WebsiteURL]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+              HTTPPort: 80
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: S3WebsiteOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CustomErrorResponses:
+          # SPA-style fallback: serve index.html for 403/404 so deep links work.
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  CloudFrontUrl:
+    Description: HTTPS URL for the site (use this)
+    Value: !Sub https://${FrontendDistribution.DomainName}
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID (for cache invalidation)
+    Value: !Ref FrontendDistribution
+  ApiBaseUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+  EstimatedStudyTimeUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/estimated-study-time
+  BulletPointSummaryUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/bullet-point-summary
+  KeyTermsGlossaryUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/key-terms-glossary
+  RealWorldExamplesUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/real-world-examples
+  DifficultyLevelTagUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/difficulty-level-tag
+  FlashcardsUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/flashcards
+  InteractiveQuizUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/interactive-quiz
+  StudyChatUrl:
+    Value: !Sub https://${AppApi}.execute-api.${AWS::Region}.amazonaws.com/prod/study-chat
+  WebsiteUrl:
+    Value: !GetAtt FrontendBucket.WebsiteURL
+  BucketName:
+    Value: !Ref FrontendBucket
